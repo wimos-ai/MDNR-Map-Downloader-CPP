@@ -9,9 +9,21 @@
 #include <stdint.h>
 #include <stdexcept>
 
+/// <summary>
+/// A 3-D coordinate specifying a location on the MDNR Map
+/// </summary>
 typedef struct Location_t {
+	/// <summary>
+	/// x coordinate
+	/// </summary>
 	uint16_t x;
+	/// <summary>
+	/// y coordinate
+	/// </summary>
 	uint16_t y;
+	/// <summary>
+	/// Layer, on range (0,16]
+	/// </summary>
 	uint8_t layer;
 
 	static Location_t fromGPSCoords(double longitude, double latitude, uint8_t layer) {

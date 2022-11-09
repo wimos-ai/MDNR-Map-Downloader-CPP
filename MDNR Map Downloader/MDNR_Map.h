@@ -29,14 +29,6 @@ private:
 	//Mutex for threaded gets and caching
 	std::mutex lock;
 
-
-	/// <summary>
-	/// Downloads the PNG from the MDNR database. 
-	/// </summary>
-	/// <param name="location">The location specifing which map pannel to download</param>
-	/// <returns>An vector containing the bytes encoded as a PNG represented the selected pannel </returns>
-	std::vector<uint8_t> download_img_bytes(Location_t location);
-
 	/// <summary>
 	/// Closes the internal HTTP handles. Used in the destructor
 	/// </summary>
@@ -89,10 +81,21 @@ public:
 	/// </summary>
 	void cacheArea(Location_t center, uint16_t radius);
 
+	/// <summary>
+	/// Returns true if the location is a cached location
+	/// </summary>
+	/// <param name="location">A location to check</param>
+	/// <returns>true if the location is cached</returns>
 	bool contains(Location_t location);
 
+	/// <summary>
+	/// A constant for bitmap width 
+	/// </summary>
 	static constexpr int pannel_width = 256;
 
+	/// <summary>
+	/// A constant for bitmap height 
+	/// </summary>
 	static constexpr int pannel_height = 256;
 
 };

@@ -53,6 +53,7 @@ MDNR_Map::MDNR_Map(HINTERNET _hSession) :
 
 MDNR_Map::~MDNR_Map() {
 	close_http_handles();
+	this->clear_cache();
 }
 
 void MDNR_Map::cacheArea(Location_t center, uint16_t radius)
@@ -99,9 +100,6 @@ IMG_t MDNR_Map::get(Location_t location) {
 
 void MDNR_Map::clear_cache() {
 	std::lock_guard<std::mutex> lck(lock);
-	for (const auto& n : internal_cache) {
-		delete n.second;
-	}
 	this->internal_cache.clear();
 }
 

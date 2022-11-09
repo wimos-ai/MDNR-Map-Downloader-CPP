@@ -15,27 +15,29 @@ using namespace Gdiplus;
 #pragma comment (lib,"Gdiplus.lib")
 
 //Custom Header Files
-#include "MainWin.h"
+#include "MainWindow.h"
 #include "resource.h"
+
+//STL
+#include <stdexcept>
+#include <exception>
 
 
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,	_In_ LPWSTR lpCmdLine,	_In_ int nCmdShow){
+	// Initialize GDI+.	
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
-	// Initialize GDI+.
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
 	register_WClass(hInstance);
 
-	auto v = createWindow(hInstance, nCmdShow);
+	HWND v = createWindow(hInstance, nCmdShow);
 
 	HACCEL hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATOR1));
 
-
 	// Run the message loop.
-
-	MSG msg = { };
+	MSG msg{};
 	while (GetMessage(&msg, nullptr, 0, 0))
 	{
 		if (!TranslateAccelerator(msg.hwnd, hAccel, &msg))
@@ -46,10 +48,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,	
 	}
 
 	GdiplusShutdown(gdiplusToken);
-
+	ShutdownMDNRMap();
 
 #ifdef _DEBUG
-	_CrtDumpMemoryLeaks();
+	if (_CrtDumpMemoryLeaks()) {
+		//throw std::bad_alloc();
+	}
 #endif
 	return 0;
 }

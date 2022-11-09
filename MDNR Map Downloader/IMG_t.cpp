@@ -20,9 +20,10 @@ using namespace Gdiplus;
 #include <stdexcept>
 
 
+/// <summary>
+/// In internal linkage for these helper functions
+/// </summary>
 namespace {
-
-	//Forward Declarations
 
 	/// <summary>
 	/// Creates a IStream from std::vector<uint8_t>
@@ -30,7 +31,11 @@ namespace {
 	/// <param name="vec">Bytes to create a IStream from</param>
 	/// 
 	/// <returns>BAn IStream containing a copy of the bytes in the vector</returns>
-	IStream* win_stream_from_vec(std::vector<uint8_t>& vec);
+	IStream* win_stream_from_vec(std::vector<uint8_t>& vec)
+	{
+		const uint8_t* begin{ &(vec.cbegin()[0]) };
+		return SHCreateMemStream(begin, static_cast<UINT>(vec.size()));
+	}
 
 	/// <summary>
 	/// Creates a IMG_t from a IStream*
@@ -38,40 +43,6 @@ namespace {
 	/// <param name="stream">A stream containing valid Image Bytes</param>
 	/// 
 	/// <returns>An Image made from those bytes</returns>
-	IMG_t fromStream(IStream* stream);
-
-	/// <summary>
-	/// Creates a IMG_t from a std::vector<uint8_t>
-	/// </summary>
-	/// <param name="vec">A array of valid image bytes</param>
-	/// <returns>An Image made from those bytes</returns>
-	IMG_t fromVec(std::vector<uint8_t>& vec);
-
-	/// <summary>
-	/// downloads image bytes from a MDNR location 
-	/// </summary>
-	/// <param name="connect_h">A valid HTTP connection to the MDNR database</param>
-	/// 
-	/// <param name="location">The location of the Image to acquire</param>
-	/// 
-	/// <param name="buffer">A buffer to place the bytes in. Suggested starting size: 2KB</param>
-	void download_img_bytes(HINTERNET connect_h, Location_t location, std::vector<uint8_t>& buffer);
-
-	/// <summary>
-	/// Forces the loading of a provided bitmap
-	/// </summary>
-	/// <param name="gdip_bitmap">The bitmap to force load</param>
-	void force_load(IMG_t gdip_bitmap);
-
-
-	//Deffinitions
-
-	IStream* win_stream_from_vec(std::vector<uint8_t>& vec)
-	{
-		const uint8_t* begin{ &(vec.cbegin()[0]) };
-		return SHCreateMemStream(begin, static_cast<UINT>(vec.size()));
-	}
-
 	IMG_t fromStream(IStream* stream) {
 		Bitmap* bmp = new Bitmap(stream, FALSE);
 		if (bmp == nullptr)
@@ -83,10 +54,24 @@ namespace {
 		return bmp;
 	}
 
+	/// <summary>
+	/// Creates a IMG_t from a std::vector<uint8_t>
+	/// </summary>
+	/// <param name="vec">A array of valid image bytes</param>
+	/// <returns>An Image made from those bytes</returns>
 	IMG_t fromVec(std::vector<uint8_t>& vec) {
 		return fromStream(win_stream_from_vec(vec));
 	}
 
+
+	/// <summary>
+	/// downloads image bytes from a MDNR location 
+	/// </summary>
+	/// <param name="connect_h">A valid HTTP connection to the MDNR database</param>
+	/// 
+	/// <param name="location">The location of the Image to acquire</param>
+	/// 
+	/// <param name="buffer">A buffer to place the bytes in. Suggested starting size: 2KB</param>
 	void download_img_bytes(HINTERNET connect_h, Location_t location, std::vector<uint8_t>& buffer) {
 		DWORD dwSize = 0;
 		DWORD dwDownloaded = 0;
@@ -182,6 +167,10 @@ namespace {
 		if (hRequest) WinHttpCloseHandle(hRequest);
 	}
 
+	/// <summary>
+	/// Forces the loading of a provided bitmap
+	/// </summary>
+	/// <param name="gdip_bitmap">The bitmap to force load</param>
 	void force_load(IMG_t gdip_bitmap) {
 		Color c;
 		gdip_bitmap->GetPixel(0, 0, &c);
@@ -190,6 +179,12 @@ namespace {
 
 }
 
+/// <summary>
+/// Downloads an image from the MDNR website
+/// </summary>
+/// <param name="connect_h">The connection handle to use</param>
+/// <param name="location">The location of the picture to grab</param>
+/// <returns>The picture from that location</returns>
 IMG_t download_img(HINTERNET connect_h, Location_t location) {
 	std::vector<uint8_t> bytes;
 	bytes.reserve(2000);
@@ -199,6 +194,13 @@ IMG_t download_img(HINTERNET connect_h, Location_t location) {
 	return gdip_bitmap;
 }
 
+/// <summary>
+/// Draws an image to the provided HDC
+/// </summary>
+/// <param name="im">An image</param>
+/// <param name="dst">Destination HDC</param>
+/// <param name="x_in">The x-coordinate of the top left corner</param>
+/// <param name="y_in">The y-coordinate of the top left corner</param>
 void draw_IMG(IMG_t im, HDC dst, int x_in, int y_in)
 {
 
@@ -212,6 +214,11 @@ void draw_IMG(IMG_t im, HDC dst, int x_in, int y_in)
 
 }
 
+/// <summary>
+/// Takes a snapshot of the provided window, and saves it to a file
+/// </summary>
+/// <param name="hWnd">A window handle</param>
+/// <param name="fileName">The name of the file in which to save the resulting image</param>
 void screenshot(HWND hWnd, wchar_t* fileName) {
 	HBITMAP hbmScreen{ NULL };
 	BITMAP bmpScreen{ NULL };

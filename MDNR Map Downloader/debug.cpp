@@ -1,15 +1,8 @@
-#ifdef _DEBUG
-#define _CRTDBG_MAP_ALLOC
-#include <stdlib.h>
-#include <crtdbg.h>
-#endif
-
 #include "debug.h"
 
-#define WIN32_LEAN_AND_MEAN 
-#include <Windows.h>
 #include <string>
-
+#include <stdlib.h>
+#include <crtdbg.h>
 #include <iomanip>
 #include <sstream>
 

@@ -12,3 +12,5 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void register_WClass(HINSTANCE hInstance);
 
 HWND createWindow(HINSTANCE hInstance, int nCmdShow);
+
+void ShutdownMDNRMap();

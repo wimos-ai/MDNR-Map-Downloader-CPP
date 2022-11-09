@@ -4,7 +4,6 @@
 //Windows Headders
 #include <Windows.h>
 #include <gdiplus.h>
-
 #include <winhttp.h>
 
 //Using Windows GDI Namespace
@@ -13,6 +12,9 @@ using Gdiplus::Bitmap;
 //My Defines
 #include "Location_t.h"
 
+/// <summary>
+/// Image type. Type ailias of Gdiplus::Bitmap*
+/// </summary>
 using IMG_t = Bitmap*;
 
 /// <summary>
@@ -32,4 +34,13 @@ IMG_t download_img(HINTERNET connect_h, Location_t location);
 /// <param name="y">The Y-Location of where to draw the image</param>
 void draw_IMG(IMG_t im, HDC dst, int x, int y);
 
+/// <summary>/// 
+/// Takes a screenshot of the contents of the provided HWND and saves it to the given file
+/// </summary>/// 
+/// <param name="hwnd">
+/// Window handle to save
+/// </param>/// 
+/// <param name="fileName">
+/// The path to save the resultant image at
+/// </param>
 void screenshot(HWND hwnd, wchar_t* fileName);

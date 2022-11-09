@@ -30,10 +30,7 @@
     <ClCompile Include="Location_t.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MainWin.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ImageGen.cpp">
+    <ClCompile Include="MainWindow.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -53,10 +50,7 @@
     <ClInclude Include="Location_t.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MainWin.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ImageGen.h">
+    <ClInclude Include="MainWindow.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

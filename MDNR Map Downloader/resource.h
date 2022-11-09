@@ -22,13 +22,14 @@
 #define ID_ACCELERATOR40011             40011
 #define ID_ACCELERATORZOOMIN            40018
 #define ID_ACCELERATORZOOMOUT           40019
+#define ID_ACCELERATOR40024             40024
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        121
-#define _APS_NEXT_COMMAND_VALUE         40024
+#define _APS_NEXT_COMMAND_VALUE         40026
 #define _APS_NEXT_CONTROL_VALUE         1010
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

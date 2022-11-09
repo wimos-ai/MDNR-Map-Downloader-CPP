@@ -130,19 +130,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="debug.cpp" />
-    <ClCompile Include="ImageGen.cpp" />
     <ClCompile Include="IMG_t.cpp" />
     <ClCompile Include="Location_t.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="MainWin.cpp" />
+    <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="MDNR_Map.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="debug.h" />
-    <ClInclude Include="ImageGen.h" />
     <ClInclude Include="IMG_t.h" />
     <ClInclude Include="Location_t.h" />
-    <ClInclude Include="MainWin.h" />
+    <ClInclude Include="MainWindow.h" />
     <ClInclude Include="MDNR_Map.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>

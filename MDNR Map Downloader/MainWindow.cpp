@@ -4,7 +4,7 @@
 #include <crtdbg.h>
 #endif
 
-#include "MainWin.h"
+#include "MainWindow.h"
 
 #include "resource.h"
 
@@ -83,6 +83,11 @@ HWND createWindow(HINSTANCE hInstance, int nCmdShow) {
 	ShowWindow(hwnd, nCmdShow);
 
 	return hwnd; //Graphics item automaticaly created
+}
+
+void ShutdownMDNRMap()
+{
+	mdnr_map.clear_cache();
 }
 
 Location_t map_location(15788, 23127, 16);
@@ -219,10 +224,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_CLOSE:
 	{
-		if (MessageBox(hwnd, L"Do you wish to quit?", APP_NAME, MB_YESNO | MB_ICONQUESTION) == IDYES)
-		{
-			DestroyWindow(hwnd);
-		}// Else: User canceled. Do nothing.
+
+		DestroyWindow(hwnd);
+
 		break;
 	}
 
