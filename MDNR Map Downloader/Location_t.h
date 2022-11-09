@@ -1,0 +1,43 @@
+#pragma once
+
+#ifdef _DEBUG
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+#endif
+
+#include <stdint.h>
+#include <stdexcept>
+
+typedef struct Location_t {
+	uint16_t x;
+	uint16_t y;
+	uint8_t layer;
+
+	static Location_t fromGPSCoords(double longitude, double latitude, uint8_t layer) {
+		
+		if (layer != 16)
+		{
+			throw std::invalid_argument("Layers other than 16 are not currently supported");
+		}
+
+		Location_t l(0, 0, layer);
+
+		//These numbers were determined by drawing a linear correlation between map_x, and longitude
+		l.x = static_cast<uint16_t>((182.038 * longitude) + 32766.9);
+
+		//# These numbers were determined by drawing a linear correlation between map_y, and latitude
+		l.y = static_cast<uint16_t>((-259.216 * latitude) + 35235.3);
+
+		return l;
+	}
+	Location_t(uint16_t x, uint16_t y, uint8_t layer) :x(x), y(y), layer(layer) {}
+	Location_t() :x(0), y(0), layer(0) {}
+}Location_t;
+
+bool operator< (const Location_t& locationA, const Location_t& locationB);
+bool operator== (const Location_t& locationA, const Location_t& locationB);
+bool operator!= (const Location_t& locationA, const Location_t& locationB);
+bool operator> (const Location_t& locationA, const Location_t& locationB);
+bool operator>= (const Location_t& locationA, const Location_t& locationB);
+bool operator<= (const Location_t& locationA, const Location_t& locationB);
