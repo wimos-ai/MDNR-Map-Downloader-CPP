@@ -5,12 +5,43 @@
 #include <windows.h>
 #include <objidl.h>
 
+#include <cwchar>
+
+#include "Location_t.h"
+
+#include "MDNR_Map.h"
+
+class MainWindow {
+
+	MDNR_Map mdnr_map;
+
+	Location_t map_location{ 15788, 23127, 16 };
+
+	const HWND WindowProcessHWND;
+
+	static constexpr wchar_t CLASS_NAME[] = L"Sample Window Class";
+	static constexpr wchar_t APP_NAME[] = L"MDNR Map Downloader";
+
+public:
+	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
+		MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+		if (me) {
+			return me->memberWndProc(hwnd, msg, wParam, lParam);
+		}
+		return DefWindowProc(hwnd, msg, wParam, lParam);
+	}
 
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+	LRESULT memberWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-void register_WClass(HINSTANCE hInstance);
+	void register_WClass(HINSTANCE hInstance);
 
-HWND createWindow(HINSTANCE hInstance, int nCmdShow);
+	HWND createWindow(HINSTANCE hInstance, int nCmdShow);
 
-void ShutdownMDNRMap();
+	void Shutdown();
+
+	void paint(HWND hwnd, HDC hdc, PAINTSTRUCT& ps);
+
+	MainWindow(HINSTANCE hInstance, int nCmdShow);
+
+};

@@ -30,9 +30,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,	
 	ULONG_PTR gdiplusToken;
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
-	register_WClass(hInstance);
-
-	HWND v = createWindow(hInstance, nCmdShow);
+	MainWindow mainWin(hInstance, nCmdShow);
 
 	HACCEL hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATOR1));
 
@@ -48,7 +46,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,	
 	}
 
 	GdiplusShutdown(gdiplusToken);
-	ShutdownMDNRMap();
 
 #ifdef _DEBUG
 	if (_CrtDumpMemoryLeaks()) {
