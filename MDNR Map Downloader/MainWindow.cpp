@@ -59,12 +59,15 @@ void MainWindow::register_WClass(HINSTANCE hInstance) {
 HWND MainWindow::createWindow(HINSTANCE hInstance, int nCmdShow) {
 	// Create the window.
 
-	HWND hwnd = CreateWindowEx(
+	CREATESTRUCTA extraWindowOptions{};
+	extraWindowOptions.dwExStyle |= WS_EX_COMPOSITED;
+
+
+	HWND hwnd = CreateWindowExW(
 		0,                              // Optional window styles.
 		CLASS_NAME,                     // Window class
 		APP_NAME,    // Window longitudeString
-		(WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX),            // Window style
-
+		(WS_EX_LAYERED | WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX),            // Window style
 		// Size and position
 		CW_USEDEFAULT, //X
 		CW_USEDEFAULT, //Y
@@ -74,7 +77,7 @@ HWND MainWindow::createWindow(HINSTANCE hInstance, int nCmdShow) {
 		NULL,       // Parent window    
 		NULL,       // Menu
 		hInstance,  // Instance handle
-		NULL        // Additional application data
+		NULL//&extraWindowOptions        // Additional application data
 	);
 
 	if (hwnd == NULL)
@@ -213,11 +216,48 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	}
 
 	case WM_PAINT:
-	{
+	{   
+		
+		HDC hdc(GetDC(hwnd));
+		paint(hwnd, hdc);
+		ReleaseDC(hwnd, hdc);
+		
 
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hwnd, &ps);
-		paint(hwnd, hdc, ps);
+
+		/*
+		HDC         hdcMem;
+		HBITMAP     hbmMem;
+		HANDLE      hOld;
+		HDC         hdc;
+
+		RECT rect;
+		GetWindowRect(hwnd, &rect);
+
+		const int win_width{ rect.right - rect.left };
+		const int win_height{ rect.bottom - rect.top };
+
+		// Get DC for window
+		hdc = GetDC(hwnd);
+
+		// Create an off-screen DC for double-buffering
+		hdcMem = CreateCompatibleDC(hdc);
+		hbmMem = CreateCompatibleBitmap(hdc, win_width, win_height);
+
+		hOld = SelectObject(hdcMem, hbmMem);
+
+		// Draw into hdcMem here
+		paint(hwnd, hdcMem);
+
+		// Transfer the off-screen DC to the screen
+		BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
+
+		// Free-up the off-screen DC
+		SelectObject(hdcMem, hOld);
+
+		DeleteObject(hbmMem);
+		DeleteDC(hdcMem);
+		*/
+		
 
 		break;
 	}
@@ -252,37 +292,42 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	return 0;
 }
 
-void MainWindow::paint(HWND hwnd, HDC hdc, PAINTSTRUCT& ps) {
-	FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+void MainWindow::paint(HWND hwnd, HDC hdc) {
 
-	RECT bbox;
-	if (!GetWindowRect(hwnd, &bbox)) {
-		throw std::runtime_error("Failed to create Get Window Size. Win32 Error Code: " + GetLastError());
-	}
+	constexpr INT img_width{ MDNR_Map::pannel_width };
+	constexpr INT img_height{ MDNR_Map::pannel_height };
 
+	const INT width{ GetDeviceCaps(hdc, HORZRES) };
+	const INT height{ GetDeviceCaps(hdc, VERTRES)};
 
-	IMG_t panel = mdnr_map.get(map_location);
+	const INT num_width_pannels{ (width / img_width) + 1 };
+	const INT num_height_pannels{ (height / img_height) + 1 };
 
-	constexpr unsigned int img_width = MDNR_Map::pannel_width;
-	constexpr unsigned int img_height = MDNR_Map::pannel_height;
+	Gdiplus::Graphics g(hdc);
 
-	const unsigned int x_width_pannels = (std::abs(bbox.left - bbox.right) / img_width) + 1;
-	const unsigned int y_height_pannels = (std::abs(bbox.top - bbox.bottom) / img_height) + 1;
+	g.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
 
-	for (unsigned int y = 0; y < y_height_pannels; y++)
-	{
-		for (unsigned int x = 0; x < x_width_pannels; x++)
-		{
-			//Location_t map_location(x + 15788, y + 23127, 16);
+	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+
+	for (INT y = 0; y < num_height_pannels; y++){
+		for (INT x = 0; x < num_width_pannels; x++){
+
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
-			auto v = mdnr_map.get(get_loaction);
+			const IMG_t v{ mdnr_map.get(get_loaction) };
 
-			draw_IMG(v, hdc, (INT)(img_width * x), (INT)(img_height * y));
+			const Point drawPoint((INT)(img_width * x), (INT)(img_height * y));
+
+			Status stat{ g.DrawImage(v, drawPoint) };
+
+			if (stat!= Status::Ok)
+			{
+				throw std::runtime_error(":(");
+			}
+
+
 		}
 	}
 
-
-	EndPaint(hwnd, &ps);
 }
 
 // Message handler for about box.

@@ -22,16 +22,6 @@ class MainWindow {
 	static constexpr wchar_t CLASS_NAME[] = L"Sample Window Class";
 	static constexpr wchar_t APP_NAME[] = L"MDNR Map Downloader";
 
-public:
-	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam){
-		MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-		if (me) {
-			return me->memberWndProc(hwnd, msg, wParam, lParam);
-		}
-		return DefWindowProc(hwnd, msg, wParam, lParam);
-	}
-
-
 	LRESULT memberWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	void register_WClass(HINSTANCE hInstance);
@@ -40,8 +30,21 @@ public:
 
 	void Shutdown();
 
-	void paint(HWND hwnd, HDC hdc, PAINTSTRUCT& ps);
+	void paint(HWND hwnd, HDC hdc);
+
+
+public:
 
 	MainWindow(HINSTANCE hInstance, int nCmdShow);
+
+	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+		MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+		if (me) {
+			return me->memberWndProc(hwnd, msg, wParam, lParam);
+		}
+		return DefWindowProc(hwnd, msg, wParam, lParam);
+	}
+
+
 
 };
