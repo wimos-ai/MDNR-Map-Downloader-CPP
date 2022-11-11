@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <vector>
 #include <mutex>
+#include <memory>
 
 //Custom defined data types
 #include "Location_t.h"
@@ -21,7 +22,7 @@ class MDNR_Map
 {
 private:
 	//A Cache because the map is likely accessed multiple times. Now we don't need to take the time to request each item
-	std::map<Location_t, IMG_t> internal_cache;
+	std::map<Location_t, std::unique_ptr<Gdiplus::Bitmap>> internal_cache;
 
 	//HTTP Connection Handles
 	const HINTERNET  session_h = NULL, connect_h = NULL;

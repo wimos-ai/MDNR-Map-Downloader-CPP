@@ -87,12 +87,12 @@ MDNR_Map::MDNR_Map(MDNR_Map& other) :session_h(other.session_h), connect_h(other
 IMG_t MDNR_Map::get(Location_t location) {
 	if (this->contains(location)) {
 		std::lock_guard<std::mutex> lck(lock);
-		return internal_cache.at(location);
+		return internal_cache.at(location).get();
 	}else {
-		auto tmp = download_img(connect_h,location);
+		Bitmap* tmp = download_img(connect_h,location);
 		std::lock_guard<std::mutex> lck(lock);
-		internal_cache[location] = tmp;
-		return internal_cache[location];
+		internal_cache[location] = std::move(std::unique_ptr<Bitmap>(tmp));
+		return internal_cache[location].get();
 	}
 }
 
