@@ -7,6 +7,8 @@
 #include "MainWindow.h"
 
 #include "resource.h"
+#include <uxtheme.h>
+#pragma comment (lib,"UxTheme.lib")
 
 #include <winuser.h>
 #include <iostream>
@@ -34,7 +36,11 @@ typedef struct LongLat {
 #define LONGLATMSG 0x0401		//passes a LongLat pointer in the wparam
 
 
-MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))) {
+MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))), bufferedInitResult(BufferedPaintInit()) {
+}
+
+MainWindow::~MainWindow() {
+	BufferedPaintUnInit();
 }
 
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -151,25 +157,25 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case ID_ACCELERATOR40007: //Right
 		{
 			map_location.x += 1;
-			InvalidateRect(hwnd, NULL, true);
+			InvalidateRect(hwnd, NULL, FALSE);
 			break;
 		}
 		case ID_ACCELERATOR40009: //Left
 		{
 			map_location.x -= 1;
-			InvalidateRect(hwnd, NULL, true);
+			InvalidateRect(hwnd, NULL, FALSE);
 			break;
 		}
 		case ID_ACCELERATOR40010: //Up
 		{
 			map_location.y -= 1;
-			InvalidateRect(hwnd, NULL, true);
+			InvalidateRect(hwnd, NULL, FALSE);
 			break;
 		}
 		case ID_ACCELERATOR40011: //Down
 		{
 			map_location.y += 1;
-			InvalidateRect(hwnd, NULL, true);
+			InvalidateRect(hwnd, NULL, FALSE);
 			break;
 		}
 		case ID_ACCELERATORZOOMOUT: //+
@@ -179,7 +185,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.x /= 2;
 				map_location.y /= 2;
 				map_location.layer--;
-				InvalidateRect(hwnd, NULL, true);
+				InvalidateRect(hwnd, NULL, FALSE);
 			}
 			break;
 
@@ -191,7 +197,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.x *= 2;
 				map_location.y *= 2;
 				map_location.layer++;
-				InvalidateRect(hwnd, NULL, true);
+				InvalidateRect(hwnd, NULL, FALSE);
 			}
 			break;
 		}
@@ -216,48 +222,8 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	}
 
 	case WM_PAINT:
-	{   
-		
-		HDC hdc(GetDC(hwnd));
-		paint(hwnd, hdc);
-		ReleaseDC(hwnd, hdc);
-		
-
-
-		/*
-		HDC         hdcMem;
-		HBITMAP     hbmMem;
-		HANDLE      hOld;
-		HDC         hdc;
-
-		RECT rect;
-		GetWindowRect(hwnd, &rect);
-
-		const int win_width{ rect.right - rect.left };
-		const int win_height{ rect.bottom - rect.top };
-
-		// Get DC for window
-		hdc = GetDC(hwnd);
-
-		// Create an off-screen DC for double-buffering
-		hdcMem = CreateCompatibleDC(hdc);
-		hbmMem = CreateCompatibleBitmap(hdc, win_width, win_height);
-
-		hOld = SelectObject(hdcMem, hbmMem);
-
-		// Draw into hdcMem here
-		paint(hwnd, hdcMem);
-
-		// Transfer the off-screen DC to the screen
-		BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
-
-		// Free-up the off-screen DC
-		SelectObject(hdcMem, hOld);
-
-		DeleteObject(hbmMem);
-		DeleteDC(hdcMem);
-		*/
-		
+	{
+		paint(hwnd);
 
 		break;
 	}
@@ -292,16 +258,118 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	return 0;
 }
 
-void MainWindow::paint(HWND hwnd, HDC hdc) {
 
+void MainWindow::paintDoubleBuffered(HWND hwnd) {
+	PAINTSTRUCT ps;
+	HDC hdc{ BeginPaint(hwnd, &ps)};
+
+	RECT sz;
+	GetWindowRect(hwnd, &sz);
+
+	BP_PAINTPARAMS paintParams = { 0 };
+
+	paintParams.cbSize = sizeof(paintParams);
+	paintParams.dwFlags = BPPF_ERASE;
+	paintParams.pBlendFunction = NULL;
+	paintParams.prcExclude = NULL;
+
+	HDC hdcBuffer;
+
+	HPAINTBUFFER hBufferedPaint = BeginBufferedPaint(hdc, &sz, BPBF_COMPATIBLEBITMAP, &paintParams, &hdcBuffer);
+
+	if (hBufferedPaint && this->bufferedInitResult == Ok) {
+		// Application specific painting code
+		paint(hwnd, hdcBuffer);
+		EndBufferedPaint(hBufferedPaint, TRUE);
+	}
+	else
+	{
+		paint(hwnd, hdc);
+	}
+
+	ReleaseDC(hwnd, hdc);
+}
+
+/*
+void MainWindow::paintDoubleBuffered(HWND hwnd) {
+
+	// Get DC for window
+	HDC hdc{ GetDC(hwnd) };
+
+
+	const INT win_width{ GetDeviceCaps(hdc, HORZRES) };
+	const INT win_height{ GetDeviceCaps(hdc, VERTRES) };
+
+	// Create an off-screen DC for double-buffering
+	HDC hdcMem{ CreateCompatibleDC(hdc) };
+
+	HBITMAP hbmMem{ CreateCompatibleBitmap(hdc, win_width, win_height) };
+
+	HANDLE hOld{ SelectObject(hdcMem, hbmMem) };
+
+	// Draw into hdcMem here
+
+	constexpr INT img_width{ MDNR_Map::pannel_width }; // MDNR_Map::pannel_width is 256
+	constexpr INT img_height{ MDNR_Map::pannel_height}; // MDNR_Map::pannel_height is 256
+
+	const INT num_width_pannels{ (win_width / img_width) + 1 };
+	const INT num_height_pannels{ (win_height / img_height) + 1 };
+
+	Gdiplus::Graphics g(hdcMem);
+
+	g.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
+
+	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+
+	for (INT y = 0; y < num_height_pannels; y++) {
+		for (INT x = 0; x < num_width_pannels; x++) {
+
+			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
+			Gdiplus::Bitmap* pannel{ mdnr_map.get(get_loaction) };
+
+			const Point drawPoint((INT)(img_width * x), (INT)(img_height * y));
+
+			Status stat{ g.DrawImage(pannel, drawPoint) };
+			if (stat != Status::Ok)
+			{
+				throw std::runtime_error(":(");
+			}
+
+		}
+	}
+
+	// Transfer the off-screen DC to the screen
+	BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
+
+	// Free-up the off-screen DC
+	SelectObject(hdcMem, hOld);
+
+	DeleteObject(hbmMem);
+	DeleteDC(hdcMem);
+}
+*/
+
+
+void MainWindow::paint(HWND hwnd) {
+	PAINTSTRUCT ps;
+	HDC hdc{ BeginPaint(hwnd,&ps) };
+	paint(hwnd, hdc);
+	EndPaint(hwnd ,&ps);
+	DeleteDC(hdc);
+}
+
+void MainWindow::paint(HWND hwnd, HDC hdc) {
 	constexpr INT img_width{ MDNR_Map::pannel_width };
 	constexpr INT img_height{ MDNR_Map::pannel_height };
 
-	const INT width{ GetDeviceCaps(hdc, HORZRES) };
-	const INT height{ GetDeviceCaps(hdc, VERTRES)};
+	RECT rect;
+	GetClientRect(hwnd, &rect);
 
-	const INT num_width_pannels{ (width / img_width) + 1 };
-	const INT num_height_pannels{ (height / img_height) + 1 };
+	const INT win_width{ rect.right - rect.left };
+	const INT win_height{ rect.bottom - rect.top };
+
+	const INT num_width_pannels{ (win_width / img_width) + 1 };
+	const INT num_height_pannels{ (win_height / img_height) + 1 };
 
 	Gdiplus::Graphics g(hdc);
 
@@ -309,8 +377,8 @@ void MainWindow::paint(HWND hwnd, HDC hdc) {
 
 	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
 
-	for (INT y = 0; y < num_height_pannels; y++){
-		for (INT x = 0; x < num_width_pannels; x++){
+	for (INT y = 0; y < num_height_pannels; y++) {
+		for (INT x = 0; x < num_width_pannels; x++) {
 
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
 			const IMG_t v{ mdnr_map.get(get_loaction) };
@@ -319,16 +387,14 @@ void MainWindow::paint(HWND hwnd, HDC hdc) {
 
 			Status stat{ g.DrawImage(v, drawPoint) };
 
-			if (stat!= Status::Ok)
+			if (stat != Status::Ok)
 			{
 				throw std::runtime_error(":(");
 			}
-
-
 		}
 	}
-
 }
+
 
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

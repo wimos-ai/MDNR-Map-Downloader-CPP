@@ -18,6 +18,7 @@ class MainWindow {
 	Location_t map_location{ 15788, 23127, 16 };
 
 	const HWND WindowProcessHWND;
+	const HRESULT bufferedInitResult;
 
 	static constexpr wchar_t CLASS_NAME[] = L"Sample Window Class";
 	static constexpr wchar_t APP_NAME[] = L"MDNR Map Downloader";
@@ -30,10 +31,15 @@ class MainWindow {
 
 	void Shutdown();
 
-	void paint(HWND hwnd, HDC hdc);
+	void paint(HWND hwnd);
+
+	void paint(HWND hwnd,HDC hdc);
+
+	void paintDoubleBuffered(HWND hwnd);
 
 
 public:
+	~MainWindow();
 
 	MainWindow(HINSTANCE hInstance, int nCmdShow);
 
