@@ -12,12 +12,17 @@ using namespace Gdiplus;
 #pragma comment (lib,"Gdiplus.lib")
 #pragma comment(lib, "Shlwapi.lib")
 
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
+
 //Additional std headers
 //Required std headers
 #include <vector>
 #include <stdint.h>
 #include <string>
 #include <stdexcept>
+#include <memory>
 
 
 /// <summary>
@@ -44,14 +49,14 @@ namespace {
 	/// 
 	/// <returns>An Image made from those bytes</returns>
 	IMG_t fromStream(IStream* stream) {
-		Bitmap* bmp = new Bitmap(stream, FALSE);
-		if (bmp == nullptr)
+		std::unique_ptr<Bitmap> bmp{ new Bitmap(stream, FALSE) };
+		if (bmp.get() == nullptr)
 		{
 			std::string error_string = "BMP Creation Failed. Win32 Error: " + std::to_string(GetLastError()) + '.';
 			throw std::runtime_error(error_string);
 		}
 		stream->Release();
-		return bmp;
+		return bmp.release();
 	}
 
 	/// <summary>
@@ -60,7 +65,9 @@ namespace {
 	/// <param name="vec">A array of valid image bytes</param>
 	/// <returns>An Image made from those bytes</returns>
 	IMG_t fromVec(std::vector<uint8_t>& vec) {
-		return fromStream(win_stream_from_vec(vec));
+		IStream* stream = win_stream_from_vec(vec);
+		IMG_t im = fromStream(stream);
+		return im;
 	}
 
 

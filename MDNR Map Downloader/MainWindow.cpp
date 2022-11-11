@@ -1,14 +1,20 @@
-#ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
-#endif
+
 
 #include "MainWindow.h"
 
 #include "resource.h"
+
+
+
+#ifdef UXTHME_BUFFER
 #include <uxtheme.h>
 #pragma comment (lib,"UxTheme.lib")
+#endif // WIN_DOUBLE_BUFFER
+
+
 
 #include <winuser.h>
 #include <iostream>
@@ -36,12 +42,21 @@ typedef struct LongLat {
 #define LONGLATMSG 0x0401		//passes a LongLat pointer in the wparam
 
 
+#ifdef UXTHME_BUFFER
 MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))), bufferedInitResult(BufferedPaintInit()) {
 }
 
 MainWindow::~MainWindow() {
 	BufferedPaintUnInit();
 }
+#else
+MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))) {
+}
+
+MainWindow::~MainWindow() {
+}
+
+#endif
 
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -186,6 +201,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.y /= 2;
 				map_location.layer--;
 				InvalidateRect(hwnd, NULL, FALSE);
+				mdnr_map.clear_cache();
 			}
 			break;
 
@@ -198,6 +214,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.y *= 2;
 				map_location.layer++;
 				InvalidateRect(hwnd, NULL, FALSE);
+				mdnr_map.clear_cache();
 			}
 			break;
 		}
@@ -223,7 +240,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 	case WM_PAINT:
 	{
-		paint(hwnd);
+		paintDoubleBuffered(hwnd);
 
 		break;
 	}
@@ -258,13 +275,13 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	return 0;
 }
 
-
+#ifdef UXTHME_BUFFER
 void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	PAINTSTRUCT ps;
 	HDC hdc{ BeginPaint(hwnd, &ps)};
 
 	RECT sz;
-	GetWindowRect(hwnd, &sz);
+	GetClientRect(hwnd, &sz);
 
 	BP_PAINTPARAMS paintParams = { 0 };
 
@@ -289,8 +306,8 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	ReleaseDC(hwnd, hdc);
 }
+#else
 
-/*
 void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	// Get DC for window
@@ -307,36 +324,7 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	HANDLE hOld{ SelectObject(hdcMem, hbmMem) };
 
-	// Draw into hdcMem here
-
-	constexpr INT img_width{ MDNR_Map::pannel_width }; // MDNR_Map::pannel_width is 256
-	constexpr INT img_height{ MDNR_Map::pannel_height}; // MDNR_Map::pannel_height is 256
-
-	const INT num_width_pannels{ (win_width / img_width) + 1 };
-	const INT num_height_pannels{ (win_height / img_height) + 1 };
-
-	Gdiplus::Graphics g(hdcMem);
-
-	g.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
-
-	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
-
-	for (INT y = 0; y < num_height_pannels; y++) {
-		for (INT x = 0; x < num_width_pannels; x++) {
-
-			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
-			Gdiplus::Bitmap* pannel{ mdnr_map.get(get_loaction) };
-
-			const Point drawPoint((INT)(img_width * x), (INT)(img_height * y));
-
-			Status stat{ g.DrawImage(pannel, drawPoint) };
-			if (stat != Status::Ok)
-			{
-				throw std::runtime_error(":(");
-			}
-
-		}
-	}
+	paint(hwnd, hdcMem);
 
 	// Transfer the off-screen DC to the screen
 	BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
@@ -347,7 +335,8 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	DeleteObject(hbmMem);
 	DeleteDC(hdcMem);
 }
-*/
+#endif
+
 
 
 void MainWindow::paint(HWND hwnd) {
@@ -383,9 +372,7 @@ void MainWindow::paint(HWND hwnd, HDC hdc) {
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
 			const IMG_t v{ mdnr_map.get(get_loaction) };
 
-			const Point drawPoint((INT)(img_width * x), (INT)(img_height * y));
-
-			Status stat{ g.DrawImage(v, drawPoint) };
+			Status stat{ g.DrawImage(v, (INT)(img_width * x), (INT)(img_height * y),img_width,img_height) };
 
 			if (stat != Status::Ok)
 			{

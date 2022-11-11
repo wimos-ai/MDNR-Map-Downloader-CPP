@@ -1,5 +1,7 @@
 #pragma once
 
+#define UXTHME_BUFFER
+
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files
 #include <windows.h>
@@ -18,7 +20,9 @@ class MainWindow {
 	Location_t map_location{ 15788, 23127, 16 };
 
 	const HWND WindowProcessHWND;
+#ifdef UXTHME_BUFFER
 	const HRESULT bufferedInitResult;
+#endif
 
 	static constexpr wchar_t CLASS_NAME[] = L"Sample Window Class";
 	static constexpr wchar_t APP_NAME[] = L"MDNR Map Downloader";
