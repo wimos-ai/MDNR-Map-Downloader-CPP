@@ -82,12 +82,15 @@ public:
 	/// </summary>
 	void cacheArea(Location_t center, uint16_t radius);
 
+	void cacheArea(Location_t top_left, Location_t bottom_right, int boarder_offset);
+
 	/// <summary>
 	/// Returns true if the location is a cached location
 	/// </summary>
 	/// <param name="location">A location to check</param>
 	/// <returns>true if the location is cached</returns>
 	bool contains(Location_t location);
+
 
 	/// <summary>
 	/// A constant for bitmap width 

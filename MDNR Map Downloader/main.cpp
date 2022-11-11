@@ -29,19 +29,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,	
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
 	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
-	MainWindow mainWin(hInstance, nCmdShow);
-
-	HACCEL hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATOR1));
-
-	// Run the message loop.
-	MSG msg{};
-	while (GetMessage(&msg, nullptr, 0, 0))
+	
 	{
-		if (!TranslateAccelerator(msg.hwnd, hAccel, &msg))
+		MainWindow mainWin(hInstance, nCmdShow);
+
+		HACCEL hAccel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATOR1));
+
+		// Run the message loop.
+		MSG msg{};
+		while (GetMessage(&msg, nullptr, 0, 0))
 		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
+			if (!TranslateAccelerator(msg.hwnd, hAccel, &msg))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 		}
 	}
 

@@ -53,22 +53,27 @@ MDNR_Map::MDNR_Map(HINTERNET _hSession) :
 
 MDNR_Map::~MDNR_Map() {
 	close_http_handles();
-	this->clear_cache();
 }
 
 void MDNR_Map::cacheArea(Location_t center, uint16_t radius)
 {
+	Location_t top_left(center.x - radius, center.y - radius, center.layer);
+	Location_t bottom_right(center.x + radius, center.y + radius, center.layer);
+	cacheArea(top_left, bottom_right, 0);
+}
+
+void  MDNR_Map::cacheArea(Location_t top_left, Location_t bottom_right, int boarder_offset) {
+	if (bottom_right.layer != top_left.layer)
+	{
+		throw std::invalid_argument("top_left and bottom_right must be on the same layer");
+	}
+
 	std::vector<Location_t> list;
 
-	list.reserve(static_cast<size_t>((static_cast<int>(radius) * 2) * (static_cast<int>(radius) * 2)));
-	for (int x = -radius; x < radius; x++)
-	{
-		for (int y = -radius; y < radius; y++) {
-			Location_t get_location = center;
-			get_location.x = get_location.x + x;
-			get_location.y = get_location.y + y;
-
-			list.push_back(get_location);
+	list.reserve((bottom_right.x - top_left.x) * (bottom_right.y - top_left.y));
+	for (int x = top_left.x - boarder_offset; x <= bottom_right.x + boarder_offset; x++){
+		for (int y = bottom_right.y + boarder_offset; y <= top_left.y - boarder_offset; y++) {
+			list.emplace_back(x, y, top_left.layer);
 		}
 	}
 	this->cache_list(list);
@@ -88,15 +93,15 @@ IMG_t MDNR_Map::get(Location_t location) {
 	if (this->contains(location)) {
 		std::lock_guard<std::mutex> lck(lock);
 		return internal_cache.at(location).get();
-	}else {
-		Bitmap* tmp = download_img(connect_h,location);
+	}
+	else {
+		std::unique_ptr<Bitmap> tmp(download_img(connect_h, location));
+		Bitmap* ret = tmp.get();
 		std::lock_guard<std::mutex> lck(lock);
-		internal_cache[location] = std::move(std::unique_ptr<Bitmap>(tmp));
-		return internal_cache[location].get();
+		internal_cache[location] = std::move(tmp);
+		return ret;
 	}
 }
-
-
 
 void MDNR_Map::clear_cache() {
 	std::lock_guard<std::mutex> lck(lock);
@@ -104,67 +109,68 @@ void MDNR_Map::clear_cache() {
 }
 
 void _cache_list(MDNR_Map* self, std::vector<Location_t>* list) {
+	std::unique_ptr<std::vector<Location_t>> raii(list);
 
-	for (auto& i : *list)
+	for (Location_t &i : *list)
 	{
 		self->get(i);
 	}
-
-	delete list;
 	return;
 }
 
 void MDNR_Map::cache_list(std::vector<Location_t>& locations)
 {
-	using std::vector;
 	const unsigned int num_threads = std::thread::hardware_concurrency();
 
-	if ((num_threads > 1) && (locations.size() > num_threads))
-	{
-		//Distribute each thread a list of locations
+	//If we have more hardware threads than requests, dole out one request to each thread
+	if (locations.size() <= num_threads){
+		for (auto& it : locations) {
+			std::thread t(
+				[it, this]() {
+					this->get(it);
+				});
 
+			if (t.joinable())
+			{
+				t.detach();
+			}
+		}
+	}
+	else { //Dole out locations.size()/num_threads requests to each thread
+		using std::vector;
+		using std::unique_ptr;
+		size_t max_requests = ceil(locations.size() / (double)num_threads);
 
-		// Allocate a vector for each future thread
-		vector <vector<Location_t>*> lists;// ((size_t)num_threads);
-
-		lists.reserve(num_threads);
-
-		const size_t storage_required = std::ceil(locations.size() / (double)num_threads);
-		for (size_t i = 0; i < num_threads; i++)
+		vector<unique_ptr<vector<Location_t>>> requests;
+		for (size_t i = 0; i < requests.size(); i++)
 		{
-			// Each thread will service ~locations.size() / num_threads locations
-			// We round up to cover the extra
-			lists.push_back(new vector<Location_t>());
-			lists[i]->reserve(storage_required);
+			requests.emplace_back(new vector<Location_t>);
+			requests[i]->reserve(max_requests); 
 		}
 
-		size_t idx = 0;
-		for (size_t i = 0; i < locations.size(); i++) {
-			idx = idx % num_threads;
-			lists[idx]->push_back(locations[i]);
-			idx++;
+		size_t count = locations.size();
+		size_t requests_index = 0;
+		size_t location_index = 0;
+		while (count > 0) {
+			requests[requests_index]->push_back(locations[location_index]);
+			location_index++;
+			requests_index++;
+			count--;
+			if (requests_index >= requests.size())
+			{
+				requests_index = 0;
+			}
 		}
 
-		//Errors happen around here
-		for (size_t i = 0; i < num_threads; i++)
+		for (auto &req : requests)
 		{
-			std::thread t(_cache_list, this, lists[i]);
+			std::thread t(_cache_list, this, req.release());
 			if (t.joinable())
 			{
 				t.detach();
 			}
 		}
 
-	}
-	else {
-		//Fall Back and give one thread all the locations.
-
-
-		std::thread t(_cache_list, this, new vector<Location_t>(locations));
-		if (t.joinable())
-		{
-			t.detach();
-		}
 	}
 
 }
