@@ -17,8 +17,84 @@
 #include <stdexcept>
 #include <thread>
 #include <cmath>
+#include <utility>
 
 
+IMG_t MDNR_Map::blank_image{ nullptr };
+
+
+
+MDNR_Map_Worker::MDNR_Map_Worker() :run(true), tasks(), lock(), thd([this]() {
+	while (this->run) {
+		sem.acquire();
+		Task tsk{ 0 };
+		{
+			std::unique_lock<std::mutex> lck(this->lock);
+			if (!tasks.empty())
+			{
+				tsk = tasks.front();
+				tasks.pop();
+			}
+		}
+
+		if (tsk != 0)
+		{
+			try {
+				tsk();
+			}
+			catch (...) {
+
+			}
+		}
+
+	}
+	}) {
+}
+
+void MDNR_Map_Worker::addTask(Task task) {
+	std::unique_lock<std::mutex> lck(this->lock);
+	tasks.push(task);
+	sem.release();
+}
+
+MDNR_Map_Worker::~MDNR_Map_Worker() {
+	kill();
+	thd.join();
+}
+
+void MDNR_Map_Worker::kill() {
+	this->run = false;
+	sem.release();
+}
+
+void MDNR_Map_Worker::clear() {
+	std::unique_lock<std::mutex> lck(this->lock);
+	while (!tasks.empty())
+	{
+		tasks.pop();
+	}
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+std::vector<Location_t> locationsInArea(Location_t top_left, Location_t bottom_right, int boarder_offset) {
+	std::vector<Location_t> list;
+
+	int width_panels(bottom_right.x - top_left.x);
+	int height_panels(bottom_right.y - top_left.y);
+
+
+	list.reserve(width_panels * height_panels);
+	for (int x = -boarder_offset; x < width_panels + boarder_offset; x++) {
+		for (int y = -boarder_offset; y < height_panels + boarder_offset; y++) {
+			list.emplace_back(top_left.x + x, top_left.y + y, top_left.layer);
+		}
+	}
+	return list;
+}
 
 
 
@@ -38,6 +114,17 @@ MDNR_Map::MDNR_Map() :
 	{
 		throw std::runtime_error("Failed to connect to maps1.dnr.state.mn.us. Win32 Error Code: " + GetLastError());
 	}
+
+	for (size_t i = 0; i < std::thread::hardware_concurrency(); i++)
+	{
+		workers.emplace_back(new MDNR_Map_Worker());
+	}
+
+	if (MDNR_Map::blank_image == nullptr)
+	{
+		MDNR_Map::blank_image = download_img(connect_h, Location_t(16, 15788, 0));
+	}
+
 }
 
 MDNR_Map::MDNR_Map(HINTERNET _hSession) :
@@ -58,6 +145,12 @@ MDNR_Map::MDNR_Map(HINTERNET _hSession) :
 
 MDNR_Map::~MDNR_Map() {
 	close_http_handles();
+
+	for (size_t i = 0; i < workers.size(); i++)
+	{
+		delete workers[i].release();
+	}
+
 }
 
 void MDNR_Map::cacheArea(Location_t center, uint16_t radius)
@@ -73,14 +166,7 @@ void  MDNR_Map::cacheArea(Location_t top_left, Location_t bottom_right, int boar
 		throw std::invalid_argument("top_left and bottom_right must be on the same layer");
 	}
 
-	std::vector<Location_t> list;
-
-	list.reserve((bottom_right.x - top_left.x) * (bottom_right.y - top_left.y));
-	for (int x = top_left.x - boarder_offset; x <= bottom_right.x + boarder_offset; x++){
-		for (int y = bottom_right.y + boarder_offset; y <= top_left.y - boarder_offset; y++) {
-			list.emplace_back(x, y, top_left.layer);
-		}
-	}
+	auto list(locationsInArea(top_left, bottom_right, boarder_offset));
 	this->cache_list(list);
 }
 
@@ -94,6 +180,16 @@ MDNR_Map::MDNR_Map(MDNR_Map& other) :session_h(other.session_h), connect_h(other
 	//Don't need to validate that session_h and connect_h are non-null because a MDNR_Map cannot be created without those values being non-null
 }
 
+IMG_t MDNR_Map::getBlankImage()
+{
+	if (MDNR_Map::blank_image == nullptr)
+	{
+		MDNR_Map::blank_image = download_img(connect_h, Location_t(16, 15788, 0));
+	}
+
+	return MDNR_Map::blank_image;
+}
+
 IMG_t MDNR_Map::get(Location_t location) {
 	if (this->contains(location)) {
 		std::lock_guard<std::mutex> lck(lock);
@@ -101,22 +197,25 @@ IMG_t MDNR_Map::get(Location_t location) {
 	}
 	else {
 		std::unique_ptr<Bitmap> tmp(download_img(connect_h, location));
-		Bitmap* ret = tmp.get();
 		std::lock_guard<std::mutex> lck(lock);
 		internal_cache[location] = std::move(tmp);
-		return ret;
+		return internal_cache[location].get();
 	}
 }
 
 void MDNR_Map::clear_cache() {
 	std::lock_guard<std::mutex> lck(lock);
 	this->internal_cache.clear();
+	for (auto& it : workers)
+	{
+		it->clear();
+	}
 }
 
 void _cache_list(MDNR_Map* self, std::vector<Location_t>* list) {
 	std::unique_ptr<std::vector<Location_t>> raii(list);
 
-	for (Location_t &i : *list)
+	for (Location_t& i : *list)
 	{
 		self->get(i);
 	}
@@ -125,64 +224,59 @@ void _cache_list(MDNR_Map* self, std::vector<Location_t>* list) {
 
 void MDNR_Map::cache_list(std::vector<Location_t>& locations)
 {
-	const unsigned int num_threads = std::thread::hardware_concurrency();
+	const unsigned int num_workers = workers.size();
 
 	//If we have more hardware threads than requests, dole out one request to each thread
-	if (locations.size() <= num_threads){
-		for (auto& it : locations) {
-			std::thread t(
-				[it, this]() {
-					this->get(it);
-				});
-
-			if (t.joinable())
-			{
-				t.detach();
-			}
+	size_t worker_idx = 0;
+	for (auto& it : locations) {
+		Task t = [it, this]() {
+			this->get(it);
+		};
+		workers[worker_idx]->addTask(t);
+		worker_idx++;
+		if (worker_idx >= num_workers)
+		{
+			worker_idx = 0;
 		}
 	}
-	else { //Dole out locations.size()/num_threads requests to each thread
-		using std::vector;
-		using std::unique_ptr;
-		size_t max_requests = ceil(locations.size() / (double)num_threads);
 
-		vector<unique_ptr<vector<Location_t>>> requests;
-		for (size_t i = 0; i < requests.size(); i++)
-		{
-			requests.emplace_back(new vector<Location_t>);
-			requests[i]->reserve(max_requests); 
-		}
 
-		size_t count = locations.size();
-		size_t requests_index = 0;
-		size_t location_index = 0;
-		while (count > 0) {
-			requests[requests_index]->push_back(locations[location_index]);
-			location_index++;
-			requests_index++;
-			count--;
-			if (requests_index >= requests.size())
-			{
-				requests_index = 0;
-			}
-		}
-
-		for (auto &req : requests)
-		{
-			std::thread t(_cache_list, this, req.release());
-			if (t.joinable())
-			{
-				t.detach();
-			}
-		}
-
-	}
 
 }
 
 void MDNR_Map::close_http_handles() {
 	if (this->connect_h) WinHttpCloseHandle(this->connect_h);
 	if (this->session_h) WinHttpCloseHandle(this->session_h);
+}
+
+void MDNR_Map::trimToArea(Location_t top_left, Location_t bottom_right, int boarder_offset) {
+	using std::vector;
+	using std::pair;
+	using std::unique_ptr;
+
+	vector<Location_t> list(locationsInArea(top_left, bottom_right, boarder_offset));
+	vector<pair<Location_t, unique_ptr<Gdiplus::Bitmap>>> imgs;
+
+	std::lock_guard<std::mutex> lck(lock);
+
+	for (int i = 0; i < list.size(); i++)
+	{
+		if (internal_cache.find(list[i]) != internal_cache.end())
+		{
+			imgs.emplace_back(list[i], this->internal_cache.at(list[i]).release());
+		}
+
+	}
+
+	internal_cache.clear();
+
+	for (auto& it : imgs)
+	{
+		internal_cache[it.first] = std::move(it.second);
+	}
+
+
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

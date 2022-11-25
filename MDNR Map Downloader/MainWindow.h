@@ -37,9 +37,11 @@ class MainWindow {
 
 	void paint(HWND hwnd);
 
-	void paint(HWND hwnd,HDC hdc);
+	static void paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd,HDC hdc);
 
 	void paintDoubleBuffered(HWND hwnd);
+
+	void cacheWindowArea(int distanceOutsizeBoarder);
 
 
 public:
@@ -54,7 +56,5 @@ public:
 		}
 		return DefWindowProc(hwnd, msg, wParam, lParam);
 	}
-
-
 
 };

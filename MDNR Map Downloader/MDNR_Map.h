@@ -13,10 +13,41 @@
 #include <vector>
 #include <mutex>
 #include <memory>
+#include <queue>
+#include <functional>
 
 //Custom defined data types
 #include "Location_t.h"
 #include "IMG_t.h"
+#include "semaphore.h"
+
+using Task = std::function<void(void)>;
+
+class MDNR_Map_Worker {
+private:
+	std::mutex lock;
+
+	semaphore sem;
+
+	std::queue<Task> tasks;
+
+	std::thread thd;
+
+	volatile bool run;
+public:
+
+	MDNR_Map_Worker();
+	~MDNR_Map_Worker();
+
+	void kill();
+
+	void addTask(Task t);
+
+	void clear();
+
+	friend class MDNR_Map;
+};
+
 
 class MDNR_Map
 {
@@ -30,6 +61,8 @@ private:
 	//Mutex for threaded gets and caching
 	std::mutex lock;
 
+	std::vector<std::unique_ptr<MDNR_Map_Worker>> workers;
+
 	/// <summary>
 	/// Closes the internal HTTP handles. Used in the destructor
 	/// </summary>
@@ -41,8 +74,13 @@ private:
 	/// <param name="other">The MDNR_Map to create from</param>
 	MDNR_Map(MDNR_Map& other);
 
+	static IMG_t blank_image;
+
 
 public:
+
+	IMG_t getBlankImage();
+
 	/// <summary>
 	/// Returns an image from the map in a thread safe manner
 	/// </summary>
@@ -72,7 +110,7 @@ public:
 	/// Throws std::runtime_exception on failure
 	/// </summary>
 	/// <param name="_hSession">A handle to an existing HTTP Session made from WinHttpOpen</param>
-	MDNR_Map(HINTERNET  _hSession);
+	explicit MDNR_Map(HINTERNET  _hSession);
 
 	///<summary>Default Destructor</summary>
 	~MDNR_Map();
@@ -90,6 +128,8 @@ public:
 	/// <param name="location">A location to check</param>
 	/// <returns>true if the location is cached</returns>
 	bool contains(Location_t location);
+
+	void trimToArea(Location_t top_left, Location_t bottom_right, int boarder_offset);
 
 
 	/// <summary>

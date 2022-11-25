@@ -6,6 +6,8 @@
 #include "MainWindow.h"
 
 #include "resource.h"
+#include "httpException.h"
+
 
 
 
@@ -31,6 +33,7 @@ using namespace Gdiplus;
 #include <cmath>
 #include <stdexcept>
 #include <memory>
+#include <array>
 
 #include "debug.h"
 
@@ -41,9 +44,12 @@ typedef struct LongLat {
 
 #define LONGLATMSG 0x0401		//passes a LongLat pointer in the wparam
 
+#define CACHED_AREA_OUTSIDE_BOARDER 3
+
 
 #ifdef UXTHME_BUFFER
 MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))), bufferedInitResult(BufferedPaintInit()) {
+	cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 }
 
 MainWindow::~MainWindow() {
@@ -58,13 +64,32 @@ MainWindow::~MainWindow() {
 
 #endif
 
+void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
+
+	RECT rect;
+	GetClientRect(WindowProcessHWND, &rect);
+
+	const INT win_width{ rect.right - rect.left };
+	const INT win_height{ rect.bottom - rect.top };
+
+
+	const INT num_width_pannels{ (win_width / MDNR_Map::pannel_width) + 1 };
+	const INT num_height_pannels{ (win_height / MDNR_Map::pannel_height) + 1 };
+
+	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), 0);
+
+
+	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder);
+
+	mdnr_map.trimToArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder + 1);
+
+}
+
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 INT_PTR CALLBACK LongLatHandler(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 void MainWindow::register_WClass(HINSTANCE hInstance) {
-	mdnr_map.cacheArea(Location_t(15788, 23127, 16), 9);
-
 	BOOL procAware = SetProcessDPIAware();
 	// Register the window class.
 	WNDCLASS wc = { };
@@ -118,6 +143,30 @@ void MainWindow::Shutdown()
 	mdnr_map.clear_cache();
 }
 
+std::unique_ptr<wchar_t> getFileSaveAsName() {
+	std::unique_ptr<wchar_t> fileName{ new wchar_t[MAX_PATH] };
+	ZeroMemory(fileName.get(), MAX_PATH);
+
+	OPENFILENAME ofn{ 0 };
+
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = NULL;
+	ofn.lpstrFile = fileName.get();
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrFilter = L"Bitmap\0*.BMP\0\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrFileTitle = NULL;
+	ofn.nMaxFileTitle = 0;
+	ofn.lpstrInitialDir = NULL;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NONETWORKBUTTON | OFN_OVERWRITEPROMPT;
+
+
+	GetSaveFileName(&ofn);
+
+	return fileName;
+
+}
+
 LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
@@ -146,51 +195,66 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		}
 		case ID_SAVE_SAVEAS:
 		{
-			wchar_t szFile[MAX_PATH] = { 0 };
+			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+			screenshot(hwnd, fileName.get());
 
-			OPENFILENAME ofn{ 0 };
+			break;
+		}
+		case ID_SAVE_SAVEDETAILED:
+		{
+			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+			Location_t top_left(map_location);
 
-			ofn.lStructSize = sizeof(ofn);
-			ofn.hwndOwner = NULL;
-			ofn.lpstrFile = szFile;
-			ofn.lpstrFile[0] = '\0';
-			ofn.nMaxFile = sizeof(szFile);
-			ofn.lpstrFilter = L"Bitmap\0*.BMP\0\0";
-			ofn.nFilterIndex = 1;
-			ofn.lpstrFileTitle = NULL;
-			ofn.nMaxFileTitle = 0;
-			ofn.lpstrInitialDir = NULL;
-			ofn.Flags = OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NONETWORKBUTTON | OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+			RECT rect;
+			GetClientRect(hwnd, &rect);
 
+			const INT win_width{ rect.right - rect.left };
+			const INT win_height{ rect.bottom - rect.top };
 
-			GetSaveFileName(&ofn);
+			const INT num_width_pannels{ (win_width / MDNR_Map::pannel_width) + 1 };
+			const INT num_height_pannels{ (win_height / MDNR_Map::pannel_height) + 1 };
+			Location_t bottom_right(top_left.x + num_width_pannels, top_left.y + num_height_pannels, top_left.layer);
 
-			screenshot(hwnd, ofn.lpstrFile);
+			top_left.translateLayer(16);
+			bottom_right.translateLayer(16);
 
+			saveArea(top_left, bottom_right, fileName.get());
+
+			break;
+		}
+		case ID_SAVE_SAVETHRESHOLDED:
+		{
+			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+			notImplementedPopup(hwnd);
 			break;
 		}
 		case ID_ACCELERATOR40007: //Right
 		{
 			map_location.x += 1;
 			InvalidateRect(hwnd, NULL, FALSE);
+			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
+
 			break;
 		}
 		case ID_ACCELERATOR40009: //Left
 		{
 			map_location.x -= 1;
 			InvalidateRect(hwnd, NULL, FALSE);
+			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			break;
 		}
 		case ID_ACCELERATOR40010: //Up
 		{
 			map_location.y -= 1;
 			InvalidateRect(hwnd, NULL, FALSE);
+			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			break;
 		}
 		case ID_ACCELERATOR40011: //Down
 		{
 			map_location.y += 1;
 			InvalidateRect(hwnd, NULL, FALSE);
+			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			break;
 		}
 		case ID_ACCELERATORZOOMOUT: //+
@@ -202,6 +266,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.layer--;
 				InvalidateRect(hwnd, NULL, FALSE);
 				mdnr_map.clear_cache();
+				cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			}
 			break;
 
@@ -215,6 +280,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				map_location.layer++;
 				InvalidateRect(hwnd, NULL, FALSE);
 				mdnr_map.clear_cache();
+				cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			}
 			break;
 		}
@@ -228,19 +294,17 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		PostQuitMessage(0);
 		break;
 	}
-	case WM_SIZE:
-	{
-		int width = LOWORD(lParam);  // Macro to get the low-order word.
-		int height = HIWORD(lParam); // Macro to get the high-order word.
-
-		// Respond to the message:
-		DefWindowProc(hwnd, uMsg, wParam, lParam);
-		break;
-	}
-
 	case WM_PAINT:
 	{
-		paintDoubleBuffered(hwnd);
+		try {
+			paintDoubleBuffered(hwnd);
+		}
+		catch (httpException& e) {
+			ShowWindow(hwnd, SW_HIDE);
+			mdnr_map.clear_cache();
+			MessageBox(NULL, L"This program requires internet connectivity. Please connect and try again", L"Error!", MB_ICONERROR | MB_OK);
+			DestroyWindow(hwnd);
+		}
 
 		break;
 	}
@@ -278,7 +342,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 #ifdef UXTHME_BUFFER
 void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	PAINTSTRUCT ps;
-	HDC hdc{ BeginPaint(hwnd, &ps)};
+	HDC hdc{ BeginPaint(hwnd, &ps) };
 
 	RECT sz;
 	GetClientRect(hwnd, &sz);
@@ -296,12 +360,12 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	if (hBufferedPaint && this->bufferedInitResult == Ok) {
 		// Application specific painting code
-		paint(hwnd, hdcBuffer);
+		paint(map_location, mdnr_map, hwnd, hdcBuffer);
 		EndBufferedPaint(hBufferedPaint, TRUE);
 	}
 	else
 	{
-		paint(hwnd, hdc);
+		paint(map_location, mdnr_map, hwnd, hdcBuffer);
 	}
 
 	ReleaseDC(hwnd, hdc);
@@ -313,9 +377,11 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	// Get DC for window
 	HDC hdc{ GetDC(hwnd) };
 
+	RECT rect;
+	GetClientRect(hwnd, &rect);
 
-	const INT win_width{ GetDeviceCaps(hdc, HORZRES) };
-	const INT win_height{ GetDeviceCaps(hdc, VERTRES) };
+	const INT win_width{ rect.right - rect.left };
+	const INT win_height{ rect.bottom - rect.top };
 
 	// Create an off-screen DC for double-buffering
 	HDC hdcMem{ CreateCompatibleDC(hdc) };
@@ -324,7 +390,7 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	HANDLE hOld{ SelectObject(hdcMem, hbmMem) };
 
-	paint(hwnd, hdcMem);
+	paint(map_location, mdnr_map, hwnd, hdcMem);
 
 	// Transfer the off-screen DC to the screen
 	BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
@@ -334,6 +400,7 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	DeleteObject(hbmMem);
 	DeleteDC(hdcMem);
+	DeleteDC(hdc);
 }
 #endif
 
@@ -342,12 +409,12 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 void MainWindow::paint(HWND hwnd) {
 	PAINTSTRUCT ps;
 	HDC hdc{ BeginPaint(hwnd,&ps) };
-	paint(hwnd, hdc);
+	paint(map_location, mdnr_map, hwnd, hdc);
 	EndPaint(hwnd ,&ps);
 	DeleteDC(hdc);
 }
 
-void MainWindow::paint(HWND hwnd, HDC hdc) {
+void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, HDC hdc) {
 	constexpr INT img_width{ MDNR_Map::pannel_width };
 	constexpr INT img_height{ MDNR_Map::pannel_height };
 
@@ -370,14 +437,16 @@ void MainWindow::paint(HWND hwnd, HDC hdc) {
 		for (INT x = 0; x < num_width_pannels; x++) {
 
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
-			const IMG_t v{ mdnr_map.get(get_loaction) };
 
-			Status stat{ g.DrawImage(v, (INT)(img_width * x), (INT)(img_height * y),img_width,img_height) };
+			IMG_t drawIm{ mdnr_map.get(get_loaction) };
+
+			Status stat{ g.DrawImage(drawIm, (INT)(img_width * x), (INT)(img_height * y),img_width,img_height) };
 
 			if (stat != Status::Ok)
 			{
 				throw std::runtime_error(":(");
 			}
+
 		}
 	}
 }

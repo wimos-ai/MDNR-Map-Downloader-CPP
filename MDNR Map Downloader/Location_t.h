@@ -45,6 +45,22 @@ typedef struct Location_t {
 	}
 	Location_t(uint16_t x, uint16_t y, uint8_t layer) :x(x), y(y), layer(layer) {}
 	Location_t() :x(0), y(0), layer(0) {}
+
+	void translateLayer(uint8_t newLayer) {
+		if (newLayer < layer)
+		{
+			this->x /= (2 * layer - newLayer);
+			this->y /= (2 * layer - newLayer);
+
+		}
+		else if(newLayer == layer) {
+			return;
+		}
+		else {
+			this->x *= (2 * layer - newLayer);
+			this->y *= (2 * layer - newLayer);
+		}
+	}
 }Location_t;
 
 bool operator< (const Location_t& locationA, const Location_t& locationB);

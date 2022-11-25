@@ -5,6 +5,7 @@ using namespace Gdiplus;
 //Additional Windows Headers
 //#include <objidl.h>
 #include <shlwapi.h>
+#include <Windows.h>
 
 
 //Including Required Window libs
@@ -21,9 +22,12 @@ using namespace Gdiplus;
 #include <vector>
 #include <stdint.h>
 #include <string>
-#include <stdexcept>
 #include <memory>
 
+#include "httpException.h"
+#include "Location_t.h"
+#include "MDNR_Map.h"
+#include "MainWindow.h"
 
 /// <summary>
 /// In internal linkage for these helper functions
@@ -97,7 +101,7 @@ namespace {
 
 		if (!hRequest)
 		{
-			throw std::runtime_error("Failed to create Win32 Request. Win32 Error Code: " + GetLastError());
+			throw httpException("Failed to create Win32 Request. Win32 Error Code: ", GetLastError());
 		}
 
 		// Send a request.
@@ -106,21 +110,21 @@ namespace {
 			WINHTTP_NO_REQUEST_DATA, 0,
 			0, 0);
 
-		if (!bResults)
+		if (bResults == FALSE)
 		{
 			if (hRequest) WinHttpCloseHandle(hRequest);
 			//TODO, Make a popup if the wifi is not connected
-			throw std::runtime_error("Failed to make send Win32 Request. Win32 Error Code: " + GetLastError());
+			throw httpException("Failed to make send Win32 Request. Win32 Error Code: ", GetLastError());
 		}
 
 
 		// End the request.
 		bResults = WinHttpReceiveResponse(hRequest, NULL);
 
-		if (!bResults)
+		if (bResults == FALSE)
 		{
 			if (hRequest) WinHttpCloseHandle(hRequest);
-			throw std::runtime_error("Failed to make recieve response from Win32 Request. Win32 Error Code: " + GetLastError());
+			throw httpException("Failed to make send Win32 Request. Win32 Error Code: ", GetLastError());
 		}
 
 		// Keep checking for data until there is nothing left.
@@ -130,7 +134,7 @@ namespace {
 			dwSize = 0;
 			if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) {
 				if (hRequest) WinHttpCloseHandle(hRequest);
-				throw std::runtime_error("Error in WinHttpQueryDataAvailable. Win32 Error Code: " + GetLastError());
+				throw httpException("Failed to make send Win32 Request. Win32 Error Code: ", GetLastError());
 			}
 			if (dwSize == 0)
 			{
@@ -318,10 +322,7 @@ void screenshot(HWND hWnd, wchar_t* fileName) {
 
 	// Gets the "bits" from the bitmap, and copies them into a buffer 
 	// that's pointed to by lpbitmap.
-	GetDIBits(hdcScreen, hbmScreen, 0,
-		(UINT)bmpScreen.bmHeight,
-		lpbitmap,
-		(BITMAPINFO*)&bi, DIB_RGB_COLORS);
+	GetDIBits(hdcScreen, hbmScreen, 0,(UINT)bmpScreen.bmHeight,	lpbitmap,(BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
 	// A file is created, this is where we will save the screen capture.
 	hFile = CreateFile(fileName,
@@ -365,4 +366,61 @@ done:
 		DeleteObject(hdcMemDC);
 	}
 	ReleaseDC(hWnd, hdcScreen);
+}
+
+//Pastes the pixels of src onto dst
+//
+void blitBitmap(Bitmap& dst, int x_offset, int y_offset, Bitmap& src, int src_wdth, int src_hgt) {
+	for (size_t x = 0; x < src_wdth; x++)
+	{
+		for (size_t y = 0; y < src_hgt; y++)
+		{
+			Color src_pix;
+			if (src.GetPixel(x, y, &src_pix) != Status::Ok)
+			{
+				throw "Sadness";
+			}
+
+			if (dst.SetPixel(x_offset + x, y_offset + y, src_pix) != Status::Ok) {
+				throw "Sadness";
+			}
+		}
+	}
+}
+
+
+void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
+	MDNR_Map mdnr_map;
+	mdnr_map.cacheArea(top_left, bottom_right, 0);
+
+	const INT win_width{ (bottom_right.x - top_left.x) * MDNR_Map::pannel_width };
+	const INT win_height{ (bottom_right.y - top_left.y) * MDNR_Map::pannel_height };
+
+	Bitmap bmp(win_width, win_height, PixelFormat24bppRGB);
+	for (size_t x = 0; x < (bottom_right.x - top_left.x); x++)
+	{
+		for (size_t y = 0; y < (bottom_right.y - top_left.y); y++) {
+
+			Location_t getLocation(top_left.x + x, top_left.y + y, top_left.layer);
+
+			blitBitmap(bmp, (x * MDNR_Map::pannel_width), (y * MDNR_Map::pannel_height), *mdnr_map.get(getLocation), MDNR_Map::pannel_width, MDNR_Map::pannel_height);
+			
+		}
+	}
+
+	/*
+	bmp: {557cf400-1a04-11d3-9a73-0000f81ef32e}
+	jpg: {557cf401-1a04-11d3-9a73-0000f81ef32e}
+	gif: {557cf402-1a04-11d3-9a73-0000f81ef32e}
+	tif: {557cf405-1a04-11d3-9a73-0000f81ef32e}
+	png: {557cf406-1a04-11d3-9a73-0000f81ef32e}
+	*/
+	CLSID pngClsid;
+	if (CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid) != NOERROR) {
+		throw "Sadness";
+	}
+	bmp.Save(fileName, &pngClsid, NULL);
+
+
+
 }
