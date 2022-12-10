@@ -12,6 +12,14 @@
 
 #include <cstring>
 
+std::size_t Location_t::hash_fn::operator() (const Location_t& location) const
+{
+	std::size_t h1 = std::hash<decltype(location.x)>()(location.x);
+	std::size_t h2 = std::hash<decltype(location.y)>()(location.y);
+	std::size_t h3 = std::hash<decltype(location.layer)>()(location.layer);
+
+	return (h1 ^ h2) ^ h3;
+}
 
 
 //// Location_t functions /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

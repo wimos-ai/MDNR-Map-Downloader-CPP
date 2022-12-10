@@ -63,7 +63,9 @@ BEGIN
     END
     POPUP "Save"
     BEGIN
-        MENUITEM "Save As",                     ID_SAVE_SAVEAS
+        MENUITEM "Save Screen",                 ID_SAVE_SAVEAS
+        MENUITEM "Save Detailed",               ID_SAVE_SAVEDETAILED
+        MENUITEM "Save Thresholded",            ID_SAVE_SAVETHRESHOLDED
     END
 END
 

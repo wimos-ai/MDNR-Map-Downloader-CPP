@@ -9,8 +9,6 @@
 #include "httpException.h"
 
 
-
-
 #ifdef UXTHME_BUFFER
 #include <uxtheme.h>
 #pragma comment (lib,"UxTheme.lib")
@@ -34,13 +32,16 @@ using namespace Gdiplus;
 #include <stdexcept>
 #include <memory>
 #include <array>
+#include <chrono>
+#include <thread>
+#include <iostream>
 
 #include "debug.h"
 
 typedef struct LongLat {
 	double longitude;
 	double latitude;
-};
+}LongLat;
 
 #define LONGLATMSG 0x0401		//passes a LongLat pointer in the wparam
 
@@ -64,11 +65,18 @@ MainWindow::~MainWindow() {
 
 #endif
 
+LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+	if (me) {
+		return me->memberWndProc(hwnd, msg, wParam, lParam);
+	}
+	return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
 void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 
 	RECT rect;
 	GetClientRect(WindowProcessHWND, &rect);
-
 	const INT win_width{ rect.right - rect.left };
 	const INT win_height{ rect.bottom - rect.top };
 
@@ -78,16 +86,11 @@ void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 
 	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), 0);
 
-
 	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder);
 
 	mdnr_map.trimToArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder + 1);
 
 }
-
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-
-INT_PTR CALLBACK LongLatHandler(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
 void MainWindow::register_WClass(HINSTANCE hInstance) {
 	BOOL procAware = SetProcessDPIAware();
@@ -179,18 +182,18 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case ID_HELP_ABOUT:
 		{
 			DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_ABOUTBOX), hwnd, About);
-			break;
+			return 0;
 		}
 		case ID_HELP_CONTROLS:
 		{
 			//TODO: Implement Help Popup
 			DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_CTRLSBOX), hwnd, About);
-			break;
+			return 0;
 		}
 		case ID_GOTO_GPSCOORDS:
 		{
 			DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_LONLATBOX), hwnd, LongLatHandler);
-			break;
+			return 0;
 
 		}
 		case ID_SAVE_SAVEAS:
@@ -198,7 +201,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
 			screenshot(hwnd, fileName.get());
 
-			break;
+			return 0;
 		}
 		case ID_SAVE_SAVEDETAILED:
 		{
@@ -220,13 +223,13 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			saveArea(top_left, bottom_right, fileName.get());
 
-			break;
+			return 0;
 		}
 		case ID_SAVE_SAVETHRESHOLDED:
 		{
 			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
 			notImplementedPopup(hwnd);
-			break;
+			return 0;
 		}
 		case ID_ACCELERATOR40007: //Right
 		{
@@ -234,28 +237,28 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			InvalidateRect(hwnd, NULL, FALSE);
 			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 
-			break;
+			return 0;
 		}
 		case ID_ACCELERATOR40009: //Left
 		{
 			map_location.x -= 1;
 			InvalidateRect(hwnd, NULL, FALSE);
 			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
-			break;
+			return 0;
 		}
 		case ID_ACCELERATOR40010: //Up
 		{
 			map_location.y -= 1;
 			InvalidateRect(hwnd, NULL, FALSE);
 			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
-			break;
+			return 0;
 		}
 		case ID_ACCELERATOR40011: //Down
 		{
 			map_location.y += 1;
 			InvalidateRect(hwnd, NULL, FALSE);
 			cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
-			break;
+			return 0;
 		}
 		case ID_ACCELERATORZOOMOUT: //+
 		{
@@ -268,7 +271,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				mdnr_map.clear_cache();
 				cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			}
-			break;
+			return 0;
 
 		}
 		case ID_ACCELERATORZOOMIN: //-
@@ -282,17 +285,17 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 				mdnr_map.clear_cache();
 				cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 			}
-			break;
+			return 0;
 		}
 		}
 
-		break;
+		return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 
 	case WM_DESTROY:
 	{
 		PostQuitMessage(0);
-		break;
+		return 0;
 	}
 	case WM_PAINT:
 	{
@@ -305,16 +308,13 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			MessageBox(NULL, L"This program requires internet connectivity. Please connect and try again", L"Error!", MB_ICONERROR | MB_OK);
 			DestroyWindow(hwnd);
 		}
-
-		break;
+		return 0;
 	}
 
 	case WM_CLOSE:
 	{
-
 		DestroyWindow(hwnd);
-
-		break;
+		return 0;
 	}
 
 	case LONGLATMSG:
@@ -330,6 +330,58 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		else {
 			MessageBox(WindowProcessHWND, L"Improper Input", L"Longitude and Latitude Could Not Be Read", MB_OK | MB_ICONEXCLAMATION);
 		}
+
+		return 0;
+	}
+
+	case WM_LBUTTONDOWN:
+	{
+
+		mButtonDown = true;
+		GetCursorPos(&this->mouseDownLocation);
+		this->currentMouseLocation = mouseDownLocation;
+		InvalidateRect(hwnd, NULL, true);
+
+		return 0;
+	}
+
+	case WM_LBUTTONUP:
+	{
+
+		mButtonDown = false;
+		GetCursorPos(&this->mouseDownLocation);
+
+		//Calculate current drag offset
+		int currMouseDx = (this->mouseDownLocation.x - this->currentMouseLocation.x);
+		int currMouseDy = (this->mouseDownLocation.y - this->currentMouseLocation.y);
+
+		//Increase stored drag offset
+		dx += currMouseDx;
+		dy += currMouseDy;
+
+		//Change Location to reduce drag offset
+		this->map_location.x -= (dx / MDNR_Map::pannel_width);
+		this->map_location.y -= (dy / MDNR_Map::pannel_height);
+
+		//Subtract pannels from offset because they aren't needed
+		dx %= MDNR_Map::pannel_width;
+		dy %= MDNR_Map::pannel_height;
+
+		//Trim MDNR_Map to new bounds
+		cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
+
+		this->currentMouseLocation = mouseDownLocation;
+		InvalidateRect(hwnd, NULL, true);
+		return 0;
+	}
+	case WM_MOUSEMOVE:
+	{
+		if (mButtonDown)
+		{
+			GetCursorPos(&this->mouseDownLocation);
+			InvalidateRect(hwnd, NULL, true);
+		}
+		return 0;
 	}
 
 	default:
@@ -404,13 +456,11 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 }
 #endif
 
-
-
 void MainWindow::paint(HWND hwnd) {
 	PAINTSTRUCT ps;
 	HDC hdc{ BeginPaint(hwnd,&ps) };
 	paint(map_location, mdnr_map, hwnd, hdc);
-	EndPaint(hwnd ,&ps);
+	EndPaint(hwnd, &ps);
 	DeleteDC(hdc);
 }
 
@@ -433,14 +483,32 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 
 	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
 
-	for (INT y = 0; y < num_height_pannels; y++) {
-		for (INT x = 0; x < num_width_pannels; x++) {
+
+	int currMouseDx;
+	int currMouseDy;
+	if (mButtonDown) {
+
+		currMouseDx = (this->mouseDownLocation.x - this->currentMouseLocation.x);
+		currMouseDy = (this->mouseDownLocation.y - this->currentMouseLocation.y);
+
+	}
+	else {
+		currMouseDx = 0;
+		currMouseDy = 0;
+	}
+	currMouseDx += dx;
+	currMouseDy += dy;
+
+
+
+	for (INT y = -CACHED_AREA_OUTSIDE_BOARDER; y < num_height_pannels + CACHED_AREA_OUTSIDE_BOARDER; y++) {
+		for (INT x = -CACHED_AREA_OUTSIDE_BOARDER; x < num_width_pannels + CACHED_AREA_OUTSIDE_BOARDER; x++) {
 
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
 
 			IMG_t drawIm{ mdnr_map.get(get_loaction) };
 
-			Status stat{ g.DrawImage(drawIm, (INT)(img_width * x), (INT)(img_height * y),img_width,img_height) };
+			Status stat{ g.DrawImage(drawIm, (INT)(img_width * x) + currMouseDx, (INT)(img_height * y) + currMouseDy,img_width,img_height) };
 
 			if (stat != Status::Ok)
 			{
@@ -453,7 +521,7 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 
 
 // Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK MainWindow::About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 	switch (message)
@@ -473,7 +541,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 // Message handler for about box.
-INT_PTR CALLBACK LongLatHandler(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK MainWindow::LongLatHandler(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 	switch (message)

@@ -368,46 +368,50 @@ done:
 	ReleaseDC(hWnd, hdcScreen);
 }
 
-//Pastes the pixels of src onto dst
-//
-void blitBitmap(Bitmap& dst, int x_offset, int y_offset, Bitmap& src, int src_wdth, int src_hgt) {
-	for (size_t x = 0; x < src_wdth; x++)
-	{
-		for (size_t y = 0; y < src_hgt; y++)
-		{
-			Color src_pix;
-			if (src.GetPixel(x, y, &src_pix) != Status::Ok)
-			{
-				throw "Sadness";
-			}
-
-			if (dst.SetPixel(x_offset + x, y_offset + y, src_pix) != Status::Ok) {
-				throw "Sadness";
-			}
-		}
-	}
-}
-
 
 void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 	MDNR_Map mdnr_map;
 	mdnr_map.cacheArea(top_left, bottom_right, 0);
 
-	const INT win_width{ (bottom_right.x - top_left.x) * MDNR_Map::pannel_width };
-	const INT win_height{ (bottom_right.y - top_left.y) * MDNR_Map::pannel_height };
+	const INT num_width_pannels{ std::abs(top_left.x - bottom_right.x)};
+	const INT num_height_pannels{ std::abs(top_left.y - bottom_right.y) };
+	
+	const INT win_width_pixels{ num_width_pannels * MDNR_Map::pannel_width };
+	const INT win_height_pixels{ num_height_pannels * MDNR_Map::pannel_height };
 
-	Bitmap bmp(win_width, win_height, PixelFormat24bppRGB);
-	for (size_t x = 0; x < (bottom_right.x - top_left.x); x++)
+	Bitmap canvas(win_width_pixels, win_height_pixels, PixelFormat24bppRGB);
+
 	{
-		for (size_t y = 0; y < (bottom_right.y - top_left.y); y++) {
+		Gdiplus::Graphics graphics(&canvas);
 
-			Location_t getLocation(top_left.x + x, top_left.y + y, top_left.layer);
+		graphics.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
 
-			blitBitmap(bmp, (x * MDNR_Map::pannel_width), (y * MDNR_Map::pannel_height), *mdnr_map.get(getLocation), MDNR_Map::pannel_width, MDNR_Map::pannel_height);
-			
+		graphics.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+
+
+		for (int y = 0; y < num_height_pannels; y++) {
+			for (int x = 0; x < num_width_pannels; x++) {
+
+				Location_t get_loaction(x + top_left.x, y + top_left.y, top_left.layer);
+
+				IMG_t drawIm{ mdnr_map.get(get_loaction) };
+
+				Status stat{ graphics.DrawImage(drawIm,
+					static_cast<INT>(MDNR_Map::pannel_width * x),
+					static_cast<INT>(MDNR_Map::pannel_height * y),
+					MDNR_Map::pannel_width,
+					MDNR_Map::pannel_height) };
+
+				if (stat != Status::Ok)
+				{
+					throw std::runtime_error(":(");
+				}
+
+			}
 		}
 	}
 
+	
 	/*
 	bmp: {557cf400-1a04-11d3-9a73-0000f81ef32e}
 	jpg: {557cf401-1a04-11d3-9a73-0000f81ef32e}
@@ -419,8 +423,5 @@ void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 	if (CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid) != NOERROR) {
 		throw "Sadness";
 	}
-	bmp.Save(fileName, &pngClsid, NULL);
-
-
-
+	canvas.Save(fileName, &pngClsid, NULL);
 }

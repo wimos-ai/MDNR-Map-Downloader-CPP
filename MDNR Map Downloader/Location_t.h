@@ -51,16 +51,24 @@ typedef struct Location_t {
 		{
 			this->x /= (2 * layer - newLayer);
 			this->y /= (2 * layer - newLayer);
-
+			layer = newLayer;
 		}
-		else if(newLayer == layer) {
-			return;
+		else if(newLayer > layer) {
+			this->x *= (2 * newLayer - layer );
+			this->y *= (2 * newLayer - layer);
+			layer = newLayer;
 		}
 		else {
-			this->x *= (2 * layer - newLayer);
-			this->y *= (2 * layer - newLayer);
+			return;
 		}
 	}
+
+	// The specialized hash function for `unordered_map` keys
+	struct hash_fn
+	{
+		std::size_t operator() (const Location_t& location) const;
+	};
+
 }Location_t;
 
 bool operator< (const Location_t& locationA, const Location_t& locationB);
