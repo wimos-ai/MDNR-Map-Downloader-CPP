@@ -20,62 +20,17 @@
 #include <utility>
 
 
-MDNR_Map_Worker::MDNR_Map_Worker() :run(true), tasks(), lock(), thd([this]() {
-	while (this->run) {
-		sem.acquire();
-		Task tsk{ 0 };
-		{
-			std::unique_lock<std::mutex> lck(this->lock);
-			if (!tasks.empty())
-			{
-				tsk = tasks.front();
-				tasks.pop();
-			}
-		}
-
-		if (tsk != 0)
-		{
-			try {
-				tsk();
-			}
-			catch (...) {
-
-			}
-		}
-
-	}
-	}) {
-}
-
-void MDNR_Map_Worker::addTask(Task task) {
-	std::unique_lock<std::mutex> lck(this->lock);
-	tasks.push(task);
-	sem.release();
-}
-
-MDNR_Map_Worker::~MDNR_Map_Worker() {
-	kill();
-	thd.join();
-}
-
-void MDNR_Map_Worker::kill() {
-	this->run = false;
-	sem.release();
-}
-
-void MDNR_Map_Worker::clear() {
-	std::unique_lock<std::mutex> lck(this->lock);
-	while (!tasks.empty())
-	{
-		tasks.pop();
-	}
-}
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-
+/// <summary>
+/// Helper function that returns all the locations within an area
+/// </summary>
+/// <param name="top_left">Top Left coordinate point</param>
+/// <param name="bottom_right">Bottom right coordinate point</param>
+/// <param name="boarder_offset">The offset outside the coordinate point</param>
+/// <returns>All the locations within an area</returns>
 std::vector<Location_t> locationsInArea(Location_t top_left, Location_t bottom_right, int boarder_offset) {
 	std::vector<Location_t> list;
 
@@ -113,7 +68,7 @@ MDNR_Map::MDNR_Map() :
 
 	for (size_t i = 0; i < std::thread::hardware_concurrency(); i++)
 	{
-		workers.emplace_back(new MDNR_Map_Worker());
+		workers.emplace_back(std::make_unique<WorkerThread>());
 	}
 
 }

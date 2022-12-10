@@ -137,6 +137,7 @@
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="MDNR_Map.cpp" />
     <ClCompile Include="semaphore.cpp" />
+    <ClCompile Include="WorkerThread.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="debug.h" />
@@ -147,6 +148,7 @@
     <ClInclude Include="MDNR_Map.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="semaphore.h" />
+    <ClInclude Include="WorkerThread.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="MDNR Map Downloader.rc" />

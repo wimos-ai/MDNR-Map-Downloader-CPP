@@ -19,6 +19,8 @@ public:
 
 	MainWindow(HINSTANCE hInstance, int nCmdShow);
 
+	void Shutdown();
+
 private:
 	//Members for mapping
 	MDNR_Map mdnr_map;
@@ -42,8 +44,6 @@ private:
 	void register_WClass(HINSTANCE hInstance);
 
 	HWND createWindow(HINSTANCE hInstance, int nCmdShow);
-
-	void Shutdown();
 
 	void paint(HWND hwnd);
 

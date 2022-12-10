@@ -1,33 +1,24 @@
-#include "IMG_t.h"
-
-using namespace Gdiplus;
-
-//Additional Windows Headers
-//#include <objidl.h>
-#include <shlwapi.h>
+//Windows Headers
 #include <Windows.h>
-
-
-//Including Required Window libs
-#pragma comment(lib, "winhttp.lib")
-#pragma comment (lib,"Gdiplus.lib")
-#pragma comment(lib, "Shlwapi.lib")
-
-#define _CRTDBG_MAP_ALLOC
-#include <stdlib.h>
-#include <crtdbg.h>
+#include <shlwapi.h>
 
 //Additional std headers
-//Required std headers
 #include <vector>
 #include <stdint.h>
 #include <string>
 #include <memory>
 
+//My Includes
+#include "IMG_t.h"
 #include "httpException.h"
 #include "Location_t.h"
 #include "MDNR_Map.h"
 #include "MainWindow.h"
+
+//Including Required Window libs
+#pragma comment(lib, "winhttp.lib")
+#pragma comment (lib,"Gdiplus.lib")
+#pragma comment(lib, "Shlwapi.lib")
 
 /// <summary>
 /// In internal linkage for these helper functions
@@ -231,7 +222,7 @@ namespace {
 	/// </summary>
 	/// <param name="gdip_bitmap">The bitmap to force load</param>
 	void force_load(IMG_t gdip_bitmap) {
-		Color c;
+		Gdiplus::Color c;
 		gdip_bitmap->GetPixel(0, 0, &c);
 		gdip_bitmap->SetPixel(0, 0, c);
 	}
@@ -263,11 +254,11 @@ IMG_t download_img(HINTERNET connect_h, Location_t location) {
 void draw_IMG(IMG_t im, HDC dst, int x_in, int y_in)
 {
 
-	Graphics g(dst);
+	Gdiplus::Graphics g(dst);
 
-	g.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
+	g.SetCompositingMode(Gdiplus::CompositingMode::CompositingModeSourceCopy);
 
-	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+	g.SetInterpolationMode(Gdiplus::InterpolationMode::InterpolationModeNearestNeighbor);
 
 	g.DrawImage(im, x_in, y_in);
 
@@ -424,17 +415,17 @@ void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 	const INT num_width_pannels{ std::abs(top_left.x - bottom_right.x)};
 	const INT num_height_pannels{ std::abs(top_left.y - bottom_right.y) };
 	
-	const INT win_width_pixels{ num_width_pannels * MDNR_Map::pannel_width };
-	const INT win_height_pixels{ num_height_pannels * MDNR_Map::pannel_height };
+	const INT win_width_pixels{ num_width_pannels * MDNR_Map::bitmap_width };
+	const INT win_height_pixels{ num_height_pannels * MDNR_Map::bitmap_height };
 
 	Bitmap canvas(win_width_pixels, win_height_pixels, PixelFormat24bppRGB);
 
 	{
 		Gdiplus::Graphics graphics(&canvas);
 
-		graphics.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
+		graphics.SetCompositingMode(Gdiplus::CompositingMode::CompositingModeSourceCopy);
 
-		graphics.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+		graphics.SetInterpolationMode(Gdiplus::InterpolationMode::InterpolationModeNearestNeighbor);
 
 
 		for (int y = 0; y < num_height_pannels; y++) {
@@ -444,13 +435,13 @@ void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 
 				auto drawIm{ mdnr_map.get(get_loaction) };
 
-				Status stat{ graphics.DrawImage(drawIm.get(),
-					static_cast<INT>(MDNR_Map::pannel_width * x),
-					static_cast<INT>(MDNR_Map::pannel_height * y),
-					MDNR_Map::pannel_width,
-					MDNR_Map::pannel_height) };
+				Gdiplus::Status stat{ graphics.DrawImage(drawIm.get(),
+					static_cast<INT>(MDNR_Map::bitmap_width * x),
+					static_cast<INT>(MDNR_Map::bitmap_height * y),
+					MDNR_Map::bitmap_width,
+					MDNR_Map::bitmap_height) };
 
-				if (stat != Status::Ok)
+				if (stat != Gdiplus::Status::Ok)
 				{
 					throw std::runtime_error(":(");
 				}

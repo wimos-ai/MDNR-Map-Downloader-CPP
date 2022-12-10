@@ -5,77 +5,23 @@
 #include <Windows.h>
 #include <winhttp.h>
 
-//Add Windows libs
-#pragma comment(lib, "winhttp.lib")
-
 //Required std headers
 #include <map>
 #include <stdint.h>
 #include <vector>
 #include <mutex>
 #include <memory>
-#include <queue>
-#include <functional>
 
 //Custom defined data types
 #include "Location_t.h"
 #include "IMG_t.h"
-#include "semaphore.h"
+#include "WorkerThread.h"
 
-using Task = std::function<void(void)>;
-
-class MDNR_Map_Worker {
-private:
-	std::mutex lock;
-
-	semaphore sem;
-
-	std::queue<Task> tasks;
-
-	std::thread thd;
-
-	volatile bool run;
-public:
-
-	MDNR_Map_Worker();
-	~MDNR_Map_Worker();
-
-	void kill();
-
-	void addTask(Task t);
-
-	void clear();
-
-	friend class MDNR_Map;
-};
-
+//Add Windows libs
+#pragma comment(lib, "winhttp.lib")
 
 class MDNR_Map
 {
-private:
-	//A Cache because the map is likely accessed multiple times. Now we don't need to take the time to request each item
-	std::map<Location_t, std::shared_ptr<Gdiplus::Bitmap>> internal_cache;
-
-	//HTTP Connection Handles
-	const HINTERNET  session_h = NULL, connect_h = NULL;
-
-	//Mutex for threaded gets and caching
-	std::mutex lock;
-
-	std::vector<std::unique_ptr<MDNR_Map_Worker>> workers;
-
-	/// <summary>
-	/// Closes the internal HTTP handles. Used in the destructor
-	/// </summary>
-	void close_http_handles();
-
-	/// <summary>
-	/// Copies over session_h, connect_h and cache
-	/// </summary>
-	/// <param name="other">The MDNR_Map to create from</param>
-	MDNR_Map(MDNR_Map& other);
-
-
 public:
 
 	/// <summary>
@@ -117,6 +63,12 @@ public:
 	/// </summary>
 	void cacheArea(Location_t center, uint16_t radius);
 
+	/// <summary>
+	/// Caches an area
+	/// </summary>
+	/// <param name="top_left"></param>
+	/// <param name="bottom_right"></param>
+	/// <param name="boarder_offset"></param>
 	void cacheArea(Location_t top_left, Location_t bottom_right, int boarder_offset);
 
 	/// <summary>
@@ -126,18 +78,41 @@ public:
 	/// <returns>true if the location is cached</returns>
 	bool contains(Location_t location);
 
+	/// <summary>
+	/// Trims the internal cache to hold only the area within the location bounds plus and offset
+	/// </summary>
+	/// <param name="top_left">Top left coordinate</param>
+	/// <param name="bottom_right">Bottom left coordinate</param>
+	/// <param name="boarder_offset">The area outside the two coordinates that are kept</param>
 	void trimToArea(Location_t top_left, Location_t bottom_right, int boarder_offset);
 
+	static constexpr int bitmap_width = 256;
+
+	static constexpr int bitmap_height = 256;
+
+private:
+	/// <summary>
+	/// Closes the internal HTTP handles. Used in the destructor
+	/// </summary>
+	void close_http_handles();
 
 	/// <summary>
-	/// A constant for bitmap width 
+	/// Copies over session_h, connect_h and cache
 	/// </summary>
-	static constexpr int pannel_width = 256;
+	/// <param name="other">The MDNR_Map to create from</param>
+	MDNR_Map(MDNR_Map& other);
 
-	/// <summary>
-	/// A constant for bitmap height 
-	/// </summary>
-	static constexpr int pannel_height = 256;
+	//A cache
+	std::map<Location_t, std::shared_ptr<Gdiplus::Bitmap>> internal_cache;
+
+	//HTTP Connection Handles
+	const HINTERNET  session_h = NULL, connect_h = NULL;
+
+	//Mutex for threaded downloads and cache requests
+	std::mutex lock;
+
+	//Threads to do non-blocking downloads
+	std::vector<std::unique_ptr<WorkerThread>> workers;
 
 };
 

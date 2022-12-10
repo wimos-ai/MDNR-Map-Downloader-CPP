@@ -63,8 +63,8 @@ void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 	const INT win_height{ rect.bottom - rect.top };
 
 
-	const INT num_width_pannels{ (win_width / MDNR_Map::pannel_width) + 1 };
-	const INT num_height_pannels{ (win_height / MDNR_Map::pannel_height) + 1 };
+	const INT num_width_pannels{ (win_width / MDNR_Map::bitmap_width) + 1 };
+	const INT num_height_pannels{ (win_height / MDNR_Map::bitmap_height) + 1 };
 
 	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), 0);
 
@@ -140,6 +140,11 @@ std::unique_ptr<wchar_t> getFileSaveAsName() {
 
 
 	GetSaveFileName(&ofn);
+	//If the end of filepath does not have .bmp or .BMP
+	if (wcsstr(fileName.get(),L".bmp") == nullptr || wcsstr(fileName.get(), L".BMP") == nullptr)
+	{
+		wcscat_s(fileName.get(), MAX_PATH, L".bmp"); //Append .bmp
+	}
 
 	return fileName;
 
@@ -189,8 +194,8 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			const INT win_width{ rect.right - rect.left };
 			const INT win_height{ rect.bottom - rect.top };
 
-			const INT num_width_pannels{ (win_width / MDNR_Map::pannel_width) + 1 };
-			const INT num_height_pannels{ (win_height / MDNR_Map::pannel_height) + 1 };
+			const INT num_width_pannels{ (win_width / MDNR_Map::bitmap_width) + 1 };
+			const INT num_height_pannels{ (win_height / MDNR_Map::bitmap_height) + 1 };
 			Location_t bottom_right(top_left.x + num_width_pannels, top_left.y + num_height_pannels, top_left.layer);
 
 			top_left.translateLayer(16);
@@ -354,12 +359,12 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		dy += currMouseDy;
 
 		//Change Location to reduce drag offset
-		this->map_location.x -= (dx / MDNR_Map::pannel_width);
-		this->map_location.y -= (dy / MDNR_Map::pannel_height);
+		this->map_location.x -= (dx / MDNR_Map::bitmap_width);
+		this->map_location.y -= (dy / MDNR_Map::bitmap_height);
 
 		//Subtract pannels from offset because they aren't needed
-		dx %= MDNR_Map::pannel_width;
-		dy %= MDNR_Map::pannel_height;
+		dx %= MDNR_Map::bitmap_width;
+		dy %= MDNR_Map::bitmap_height;
 
 		//Trim MDNR_Map to new bounds
 		cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
@@ -425,8 +430,8 @@ void MainWindow::paint(HWND hwnd) {
 }
 
 void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, HDC hdc) {
-	constexpr INT img_width{ MDNR_Map::pannel_width };
-	constexpr INT img_height{ MDNR_Map::pannel_height };
+	constexpr INT img_width{ MDNR_Map::bitmap_width };
+	constexpr INT img_height{ MDNR_Map::bitmap_height };
 
 	RECT rect;
 	GetClientRect(hwnd, &rect);
