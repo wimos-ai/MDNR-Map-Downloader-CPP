@@ -1,33 +1,17 @@
 #define _CRTDBG_MAP_ALLOC
+
+//Windows Includes
+#include <windows.h> //Windows.h Include must be first
 #include <stdlib.h>
 #include <crtdbg.h>
-
-
-#include "MainWindow.h"
-
-#include "resource.h"
-#include "httpException.h"
-
-
-#ifdef UXTHME_BUFFER
 #include <uxtheme.h>
-#pragma comment (lib,"UxTheme.lib")
-#endif // WIN_DOUBLE_BUFFER
-
-
-
-#include <winuser.h>
-#include <iostream>
-
 #include <shellapi.h>
 #include <commdlg.h>
-
-#include <windows.h>
 #include <objidl.h>
 #include <gdiplus.h>
-using namespace Gdiplus;
-#pragma comment (lib,"Gdiplus.lib")
+#include <winuser.h>
 
+//STL Includes
 #include <cmath>
 #include <stdexcept>
 #include <memory>
@@ -36,19 +20,25 @@ using namespace Gdiplus;
 #include <thread>
 #include <iostream>
 
+
+//My Includes
+#include "MainWindow.h"
+#include "resource.h"
+#include "httpException.h"
 #include "debug.h"
+
+//Needed Libs
+#pragma comment (lib,"UxTheme.lib")
+#pragma comment (lib,"Gdiplus.lib")
 
 typedef struct LongLat {
 	double longitude;
 	double latitude;
 }LongLat;
 
-#define LONGLATMSG 0x0401		//passes a LongLat pointer in the wparam
+constexpr long long LONGLATMSG = 0x0401;		//passes a LongLat pointer in the wparam
+constexpr long long CACHED_AREA_OUTSIDE_BOARDER = 3;
 
-#define CACHED_AREA_OUTSIDE_BOARDER 3
-
-
-#ifdef UXTHME_BUFFER
 MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))), bufferedInitResult(BufferedPaintInit()) {
 	cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 }
@@ -56,14 +46,6 @@ MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((th
 MainWindow::~MainWindow() {
 	BufferedPaintUnInit();
 }
-#else
-MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))) {
-}
-
-MainWindow::~MainWindow() {
-}
-
-#endif
 
 LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
@@ -95,7 +77,7 @@ void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 void MainWindow::register_WClass(HINSTANCE hInstance) {
 	BOOL procAware = SetProcessDPIAware();
 	// Register the window class.
-	WNDCLASS wc = { };
+	WNDCLASS wc = { 0 };
 
 	wc.lpfnWndProc = this->WndProc;
 	wc.hInstance = hInstance;
@@ -107,26 +89,19 @@ void MainWindow::register_WClass(HINSTANCE hInstance) {
 
 HWND MainWindow::createWindow(HINSTANCE hInstance, int nCmdShow) {
 	// Create the window.
-
-	CREATESTRUCTA extraWindowOptions{};
-	extraWindowOptions.dwExStyle |= WS_EX_COMPOSITED;
-
-
 	HWND hwnd = CreateWindowExW(
-		0,                              // Optional window styles.
-		CLASS_NAME,                     // Window class
-		APP_NAME,    // Window longitudeString
-		(WS_EX_LAYERED | WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX),            // Window style
-		// Size and position
-		CW_USEDEFAULT, //X
-		CW_USEDEFAULT, //Y
-		CW_USEDEFAULT, //Width
-		CW_USEDEFAULT, //Height
-
-		NULL,       // Parent window    
-		NULL,       // Menu
-		hInstance,  // Instance handle
-		NULL//&extraWindowOptions        // Additional application data
+		0,																									// Optional window styles.
+		CLASS_NAME,																							// Window class
+		APP_NAME,																							// Window longitudeString
+		(WS_EX_LAYERED | WS_OVERLAPPEDWINDOW | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX),	// Window style
+		CW_USEDEFAULT,																						//X
+		CW_USEDEFAULT,																						//Y
+		CW_USEDEFAULT,																						//Width
+		CW_USEDEFAULT,																						//Height
+		NULL,																								// Parent window    
+		NULL,																								// Menu
+		hInstance,																							// Instance handle
+		NULL																								// Additional application data
 	);
 
 	if (hwnd == NULL)
@@ -302,7 +277,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		try {
 			paintDoubleBuffered(hwnd);
 		}
-		catch (httpException& e) {
+		catch (httpException) {
 			ShowWindow(hwnd, SW_HIDE);
 			mdnr_map.clear_cache();
 			MessageBox(NULL, L"This program requires internet connectivity. Please connect and try again", L"Error!", MB_ICONERROR | MB_OK);
@@ -336,7 +311,21 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 	case WM_LBUTTONDOWN:
 	{
+		//Set up mouse tracking so we know when the mouse leaves
+		TRACKMOUSEEVENT tm = { 0 };
+		tm.cbSize = sizeof(TRACKMOUSEEVENT);
+		tm.dwFlags = TME_LEAVE;
+		tm.hwndTrack = hwnd;
+		tm.dwHoverTime = NULL;
 
+		//Make call with trace back for error handling
+		if (!TrackMouseEvent(&tm)) {
+			std::string errorMsg("Call to TrackMouseEvent failed");
+			errorMsg += +__FILE__ + __LINE__;
+			throw std::runtime_error(errorMsg);
+		}
+
+		//Change state to handle the button being pressed
 		mButtonDown = true;
 		GetCursorPos(&this->mouseDownLocation);
 		this->currentMouseLocation = mouseDownLocation;
@@ -345,9 +334,14 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		return 0;
 	}
 
+	case WM_MOUSELEAVE:
+		if (!mButtonDown)
+		{
+			return 0;
+		}
+		//Fall through
 	case WM_LBUTTONUP:
 	{
-
 		mButtonDown = false;
 		GetCursorPos(&this->mouseDownLocation);
 
@@ -391,7 +385,6 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 	return 0;
 }
 
-#ifdef UXTHME_BUFFER
 void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	PAINTSTRUCT ps;
 	HDC hdc{ BeginPaint(hwnd, &ps) };
@@ -410,7 +403,7 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	HPAINTBUFFER hBufferedPaint = BeginBufferedPaint(hdc, &sz, BPBF_COMPATIBLEBITMAP, &paintParams, &hdcBuffer);
 
-	if (hBufferedPaint && this->bufferedInitResult == Ok) {
+	if (hBufferedPaint && this->bufferedInitResult == Gdiplus::Status::Ok) {
 		// Application specific painting code
 		paint(map_location, mdnr_map, hwnd, hdcBuffer);
 		EndBufferedPaint(hBufferedPaint, TRUE);
@@ -422,39 +415,6 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	ReleaseDC(hwnd, hdc);
 }
-#else
-
-void MainWindow::paintDoubleBuffered(HWND hwnd) {
-
-	// Get DC for window
-	HDC hdc{ GetDC(hwnd) };
-
-	RECT rect;
-	GetClientRect(hwnd, &rect);
-
-	const INT win_width{ rect.right - rect.left };
-	const INT win_height{ rect.bottom - rect.top };
-
-	// Create an off-screen DC for double-buffering
-	HDC hdcMem{ CreateCompatibleDC(hdc) };
-
-	HBITMAP hbmMem{ CreateCompatibleBitmap(hdc, win_width, win_height) };
-
-	HANDLE hOld{ SelectObject(hdcMem, hbmMem) };
-
-	paint(map_location, mdnr_map, hwnd, hdcMem);
-
-	// Transfer the off-screen DC to the screen
-	BitBlt(hdc, 0, 0, win_width, win_height, hdcMem, 0, 0, SRCCOPY);
-
-	// Free-up the off-screen DC
-	SelectObject(hdcMem, hOld);
-
-	DeleteObject(hbmMem);
-	DeleteDC(hdcMem);
-	DeleteDC(hdc);
-}
-#endif
 
 void MainWindow::paint(HWND hwnd) {
 	PAINTSTRUCT ps;
@@ -478,19 +438,15 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 	const INT num_height_pannels{ (win_height / img_height) + 1 };
 
 	Gdiplus::Graphics g(hdc);
-
-	g.SetCompositingMode(CompositingMode::CompositingModeSourceCopy);
-
-	g.SetInterpolationMode(InterpolationMode::InterpolationModeNearestNeighbor);
+	g.SetCompositingMode(Gdiplus::CompositingMode::CompositingModeSourceCopy);
+	g.SetInterpolationMode(Gdiplus::InterpolationMode::InterpolationModeNearestNeighbor);
 
 
 	int currMouseDx;
 	int currMouseDy;
 	if (mButtonDown) {
-
 		currMouseDx = (this->mouseDownLocation.x - this->currentMouseLocation.x);
 		currMouseDy = (this->mouseDownLocation.y - this->currentMouseLocation.y);
-
 	}
 	else {
 		currMouseDx = 0;
@@ -506,11 +462,11 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 
 			Location_t get_loaction(x + map_location.x, y + map_location.y, map_location.layer);
 
-			IMG_t drawIm{ mdnr_map.get(get_loaction) };
+			auto drawIm{ mdnr_map.get(get_loaction) };
 
-			Status stat{ g.DrawImage(drawIm, (INT)(img_width * x) + currMouseDx, (INT)(img_height * y) + currMouseDy,img_width,img_height) };
+			Gdiplus::Status stat{ g.DrawImage(drawIm.get(), (INT)(img_width * x) + currMouseDx, (INT)(img_height * y) + currMouseDy,img_width,img_height)};
 
-			if (stat != Status::Ok)
+			if (stat != Gdiplus::Status::Ok)
 			{
 				throw std::runtime_error(":(");
 			}
@@ -518,7 +474,6 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 		}
 	}
 }
-
 
 // Message handler for about box.
 INT_PTR CALLBACK MainWindow::About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

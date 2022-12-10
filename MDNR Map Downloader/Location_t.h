@@ -1,4 +1,5 @@
-#pragma once
+#ifndef LOCATION_T_H097623708098732
+#define LOCATION_T_H097623708098732
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -77,3 +78,5 @@ bool operator!= (const Location_t& locationA, const Location_t& locationB);
 bool operator> (const Location_t& locationA, const Location_t& locationB);
 bool operator>= (const Location_t& locationA, const Location_t& locationB);
 bool operator<= (const Location_t& locationA, const Location_t& locationB);
+
+#endif LOCATION_T_H097623708098732;

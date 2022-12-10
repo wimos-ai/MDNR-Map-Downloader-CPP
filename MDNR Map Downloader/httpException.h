@@ -1,3 +1,6 @@
+#ifndef HTTPEXCEPTION_H8732790
+#define HTTPEXCEPTION_H8732790
+
 #include <exception>
 #include <string>
 #include <windows.h>
@@ -10,3 +13,5 @@ private:
 public:
 	httpException(const std::string& errorMsg, DWORD errorCode);
 };
+
+#endif // HTTPEXCEPTION_H8732790

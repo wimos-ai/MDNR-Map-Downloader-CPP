@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MDNR_MAP_H8163277
+#define MDNR_MAP_H8163277
 
 //Required Windows Headers
 #include <Windows.h>
@@ -53,7 +54,7 @@ class MDNR_Map
 {
 private:
 	//A Cache because the map is likely accessed multiple times. Now we don't need to take the time to request each item
-	std::map<Location_t, std::unique_ptr<Gdiplus::Bitmap>> internal_cache;
+	std::map<Location_t, std::shared_ptr<Gdiplus::Bitmap>> internal_cache;
 
 	//HTTP Connection Handles
 	const HINTERNET  session_h = NULL, connect_h = NULL;
@@ -74,19 +75,15 @@ private:
 	/// <param name="other">The MDNR_Map to create from</param>
 	MDNR_Map(MDNR_Map& other);
 
-	static IMG_t blank_image;
-
 
 public:
-
-	IMG_t getBlankImage();
 
 	/// <summary>
 	/// Returns an image from the map in a thread safe manner
 	/// </summary>
 	/// <param name="location">The location specifing which map pannel to retreive</param>
 	/// <returns></returns>
-	IMG_t get(Location_t location);
+	std::shared_ptr<Gdiplus::Bitmap> get(Location_t location);
 
 	/// <summary>
 	/// Clears the internal cache. Can be used to free up memory
@@ -143,3 +140,5 @@ public:
 	static constexpr int pannel_height = 256;
 
 };
+
+#endif // MDNR_MAP_H8163277

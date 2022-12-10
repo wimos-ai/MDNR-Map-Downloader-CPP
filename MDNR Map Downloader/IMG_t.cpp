@@ -35,6 +35,54 @@ using namespace Gdiplus;
 namespace {
 
 	/// <summary>
+	/// returns a vector of vectors (with the contained vectors representing columns of pixels in the image) when passed a file path:
+	/// </summary>
+	/// <param name="filename">File name</param>
+	/// <returns>returns a vector of vectors (with the contained vectors representing columns of pixels in the image) when passed a file path</returns>
+	std::vector<std::vector<unsigned>> getPixels(const wchar_t* filename) {
+		Gdiplus::Bitmap bitmap(filename);
+
+		//Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
+		int width = bitmap.GetWidth();
+		int height = bitmap.GetHeight();
+
+		Gdiplus::BitmapData* bitmapData = new Gdiplus::BitmapData;
+
+		//Lock the whole bitmap so we can read pixel data easily.
+		Gdiplus::Rect rect(0, 0, width, height);
+		bitmap.LockBits(&rect, Gdiplus::ImageLockMode::ImageLockModeRead, PixelFormat32bppARGB, bitmapData);
+
+		//Get the individual pixels from the locked area.
+		unsigned int* pixels = static_cast<unsigned*>(bitmapData->Scan0);
+
+		//Vector of vectors; each vector is a column.
+		std::vector<std::vector<unsigned>> resultPixels(width, std::vector<unsigned>(height));
+
+		const int stride{ abs(bitmapData->Stride) };
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				//Get the pixel colour from the pixels array which we got earlier.
+				const unsigned pxColor = pixels[y * stride / 4 + x];
+
+				//Get each individual colour component. Bitmap colours are in reverse order.
+				const unsigned red = (pxColor & 0xFF0000) >> 16;
+				const unsigned green = (pxColor & 0xFF00) >> 8;
+				const unsigned blue = pxColor & 0xFF;
+
+				//Combine the values in a more typical RGB format (as opposed to the bitmap way).
+				const int rgbValue = RGB(red, green, blue);
+
+				//Assign this RGB value to the pixel location in the vector o' vectors.
+				resultPixels[x][y] = rgbValue;
+			}
+		}
+
+		//Unlock the bits that we locked before.
+		bitmap.UnlockBits(bitmapData);
+		return resultPixels;
+	}
+
+	/// <summary>
 	/// Creates a IStream from std::vector<uint8_t>
 	/// </summary>
 	/// <param name="vec">Bytes to create a IStream from</param>
@@ -394,9 +442,9 @@ void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 
 				Location_t get_loaction(x + top_left.x, y + top_left.y, top_left.layer);
 
-				IMG_t drawIm{ mdnr_map.get(get_loaction) };
+				auto drawIm{ mdnr_map.get(get_loaction) };
 
-				Status stat{ graphics.DrawImage(drawIm,
+				Status stat{ graphics.DrawImage(drawIm.get(),
 					static_cast<INT>(MDNR_Map::pannel_width * x),
 					static_cast<INT>(MDNR_Map::pannel_height * y),
 					MDNR_Map::pannel_width,
@@ -421,7 +469,7 @@ void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
 	*/
 	CLSID pngClsid;
 	if (CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid) != NOERROR) {
-		throw "Sadness";
+		throw std::runtime_error("pngClsid failed to initalize");
 	}
 	canvas.Save(fileName, &pngClsid, NULL);
 }

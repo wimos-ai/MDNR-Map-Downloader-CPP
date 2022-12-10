@@ -1,3 +1,6 @@
+#ifndef SEMAPHORE_H7598278632
+#define SEMAPHORE_H7598278632
+
 #include <mutex>
 #include <condition_variable>
 
@@ -13,3 +16,4 @@ public:
 
     bool try_acquire();
 };
+#endif //SEMAPHORE_H7598278632

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef IMG_T_H986132709870932
+#define IMG_T_H986132709870932
 
 
 //Windows Headders
@@ -58,3 +59,5 @@ void screenshot(HWND hwnd, wchar_t* fileName);
 /// The name of the file to save the result to
 /// </param>
 void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName);
+
+#endif // IMG_T_H986132709870932

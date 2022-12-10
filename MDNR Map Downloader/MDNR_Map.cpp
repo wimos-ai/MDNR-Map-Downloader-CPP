@@ -20,10 +20,6 @@
 #include <utility>
 
 
-IMG_t MDNR_Map::blank_image{ nullptr };
-
-
-
 MDNR_Map_Worker::MDNR_Map_Worker() :run(true), tasks(), lock(), thd([this]() {
 	while (this->run) {
 		sem.acquire();
@@ -120,11 +116,6 @@ MDNR_Map::MDNR_Map() :
 		workers.emplace_back(new MDNR_Map_Worker());
 	}
 
-	if (MDNR_Map::blank_image == nullptr)
-	{
-		MDNR_Map::blank_image = download_img(connect_h, Location_t(16, 15788, 0));
-	}
-
 }
 
 MDNR_Map::MDNR_Map(HINTERNET _hSession) :
@@ -180,26 +171,17 @@ MDNR_Map::MDNR_Map(MDNR_Map& other) :session_h(other.session_h), connect_h(other
 	//Don't need to validate that session_h and connect_h are non-null because a MDNR_Map cannot be created without those values being non-null
 }
 
-IMG_t MDNR_Map::getBlankImage()
-{
-	if (MDNR_Map::blank_image == nullptr)
-	{
-		MDNR_Map::blank_image = download_img(connect_h, Location_t(16, 15788, 0));
-	}
 
-	return MDNR_Map::blank_image;
-}
-
-IMG_t MDNR_Map::get(Location_t location) {
+std::shared_ptr<Gdiplus::Bitmap> MDNR_Map::get(Location_t location) {
 	if (this->contains(location)) {
 		std::lock_guard<std::mutex> lck(lock);
-		return internal_cache.at(location).get();
+		return internal_cache.at(location);
 	}
 	else {
 		std::unique_ptr<Bitmap> tmp(download_img(connect_h, location));
 		std::lock_guard<std::mutex> lck(lock);
 		internal_cache[location] = std::move(tmp);
-		return internal_cache[location].get();
+		return internal_cache[location];
 	}
 }
 
@@ -255,7 +237,7 @@ void MDNR_Map::trimToArea(Location_t top_left, Location_t bottom_right, int boar
 	using std::unique_ptr;
 
 	vector<Location_t> list(locationsInArea(top_left, bottom_right, boarder_offset));
-	vector<pair<Location_t, unique_ptr<Gdiplus::Bitmap>>> imgs;
+	vector<pair<Location_t, std::shared_ptr<Gdiplus::Bitmap>>> kept_images;
 
 	std::lock_guard<std::mutex> lck(lock);
 
@@ -263,20 +245,16 @@ void MDNR_Map::trimToArea(Location_t top_left, Location_t bottom_right, int boar
 	{
 		if (internal_cache.find(list[i]) != internal_cache.end())
 		{
-			imgs.emplace_back(list[i], this->internal_cache.at(list[i]).release());
+			kept_images.emplace_back(list[i], this->internal_cache.at(list[i]));
 		}
-
 	}
 
 	internal_cache.clear();
 
-	for (auto& it : imgs)
+	for (auto& it : kept_images)
 	{
 		internal_cache[it.first] = std::move(it.second);
 	}
-
-
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
