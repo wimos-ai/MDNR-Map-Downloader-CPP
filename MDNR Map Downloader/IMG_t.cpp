@@ -7,6 +7,14 @@
 #include <stdint.h>
 #include <string>
 #include <memory>
+#include <stdint.h>
+#include <stdexcept>
+#include <fstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <tchar.h>
+#include <signal.h>
 
 //My Includes
 #include "IMG_t.h"
@@ -14,6 +22,7 @@
 #include "Location_t.h"
 #include "MDNR_Map.h"
 #include "MainWindow.h"
+#include "EasyBitmap.h"
 
 //Including Required Window libs
 #pragma comment(lib, "winhttp.lib")
@@ -249,7 +258,7 @@ IMG_t download_img(HINTERNET connect_h, Location_t location) {
 /// </summary>
 /// <param name="im">An image</param>
 /// <param name="dst">Destination HDC</param>
-/// <param name="x_in">The x-coordinate of the top left corner</param>
+/// <param name="x_in">The y-coordinate of the top left corner</param>
 /// <param name="y_in">The y-coordinate of the top left corner</param>
 void draw_IMG(IMG_t im, HDC dst, int x_in, int y_in)
 {
@@ -361,7 +370,7 @@ void screenshot(HWND hWnd, wchar_t* fileName) {
 
 	// Gets the "bits" from the bitmap, and copies them into a buffer 
 	// that's pointed to by lpbitmap.
-	GetDIBits(hdcScreen, hbmScreen, 0,(UINT)bmpScreen.bmHeight,	lpbitmap,(BITMAPINFO*)&bi, DIB_RGB_COLORS);
+	GetDIBits(hdcScreen, hbmScreen, 0, (UINT)bmpScreen.bmHeight, lpbitmap, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
 	// A file is created, this is where we will save the screen capture.
 	hFile = CreateFile(fileName,
@@ -408,59 +417,165 @@ done:
 }
 
 
+#pragma pack()
+struct bitmapHeader {
+	char front[2];
+	uint32_t fileSize;
+	uint32_t reserved;
+	uint32_t offsetToBMPData;
+}bitmapHeader;
+
+#pragma pack()
+struct bitmapInfoHeader {
+	uint32_t sizeInfoHeader;
+	uint32_t widthPixels;
+	uint32_t heightPixels;
+	uint16_t numPlanes;
+	uint16_t bitsPerPixel;
+	uint32_t compression;
+	uint32_t imSizeCompression;
+	uint32_t xPixPerM;
+	uint32_t yPixPerM;
+	uint32_t colorsUsed;
+	uint32_t importantColors;
+}bitmapInfoHeader;
+
 void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName) {
+	/*
+		Because of the extremely high amount of memory this function may require, I must do this in a extremely low level manner
+		Here be dragons, good luck!
+
+
+		My basic idea is this, because the bitmap file specification writes the bitmap line by line from the bottom up,
+		I can download each row of bitmaps and stream the composite line from each bitmap to the file without having to combine the bitmaps in memory.
+		This sidesteps the contiguious memory requirement and allows me to write obcenely large bitmaps to a file.
+
+		Because I know the area I am downloading, I can precompute my headers and write them out to the file ahead of time.
+
+		The specification can be found here: http://www.ece.ualberta.ca/~elliott/ee552/studentAppNotes/2003_w/misc/bmp_file_format/bmp_file_format.htm
+
+	*/
+
+	std::unique_ptr<wchar_t> fnameRAII{ fileName };
+
+	//Step 1: Calculate Number of pannels
+	const unsigned int num_width_pannels{ static_cast<unsigned int>(std::abs(top_left.x - bottom_right.x)) };
+	const unsigned int num_height_pannels{ static_cast<unsigned int>(std::abs(top_left.y - bottom_right.y)) };
+
+	const unsigned int num_width_pixels{ static_cast<unsigned int>(num_width_pannels * MDNR_Map::bitmap_width) };
+	const unsigned int num_height_pixels{ static_cast<unsigned int>(num_height_pannels * MDNR_Map::bitmap_height) };
+
+	constexpr int bitsPerPixel = 32;
+	constexpr int bytesPexPixel = 4;
+
+
+	//Step 2: Compute My header
+	struct bitmapHeader bmh { 0 };
+	bmh.front[0] = 'B';
+	bmh.front[1] = 'M';
+	bmh.fileSize = sizeof(struct bitmapHeader) + sizeof(struct bitmapInfoHeader) + (num_width_pixels * num_height_pixels * bytesPexPixel);
+	bmh.offsetToBMPData = sizeof(struct bitmapHeader) + sizeof(struct bitmapInfoHeader);
+
+	//Step 3: Compute Info Header
+	struct bitmapInfoHeader bmi { 0 };
+	bmi.sizeInfoHeader = sizeof(struct bitmapInfoHeader);
+	bmi.widthPixels = num_width_pixels;
+	bmi.heightPixels = num_height_pixels;
+	bmi.numPlanes = 0;
+	bmi.bitsPerPixel = bitsPerPixel;
+	bmi.xPixPerM = 1;
+	bmi.yPixPerM = 1;
+
+	//Step 4: Begin caching
 	MDNR_Map mdnr_map;
-	mdnr_map.cacheArea(top_left, bottom_right, 0);
+	mdnr_map.cacheArea(top_left, bottom_right, 0); //Bitmaps are being pulled in the background
 
-	const INT num_width_pannels{ std::abs(top_left.x - bottom_right.x)};
-	const INT num_height_pannels{ std::abs(top_left.y - bottom_right.y) };
-	
-	const INT win_width_pixels{ num_width_pannels * MDNR_Map::bitmap_width };
-	const INT win_height_pixels{ num_height_pannels * MDNR_Map::bitmap_height };
+	//Step 5: Open the output file
+	std::ofstream fout;
+	fout.open(fileName, std::ios::binary | std::ios::out);
 
-	Bitmap canvas(win_width_pixels, win_height_pixels, PixelFormat24bppRGB);
+	//Step 6: Write the headers
+	fout.write((char*)&bmh, sizeof(bmh));
+	fout.write((char*)&bmi, sizeof(bmi));
 
+	const auto hdlr = signal(SIGSEGV, [](int i) {
+		throw std::exception("Bad Memory access");
+	});
+
+
+	//Step 7: Iterate through each row of bitmaps from the bottom up and write each line of bitmap to the file
+	for (int y = 0; y < num_height_pannels; y++)
 	{
-		Gdiplus::Graphics graphics(&canvas);
 
-		graphics.SetCompositingMode(Gdiplus::CompositingMode::CompositingModeSourceCopy);
+		std::vector<EasyBitmap> row; //Set up container
+		row.reserve(num_width_pannels); //Allocate space for bitmaps
 
-		graphics.SetInterpolationMode(Gdiplus::InterpolationMode::InterpolationModeNearestNeighbor);
+		//Download the row and lock each bitmap for use
+		for (size_t x = 0; x < num_width_pannels; x++)
+		{
+			auto im = mdnr_map.get(Location_t(top_left.x + x, bottom_right.y + y, top_left.layer)).get();
 
+			auto vec = getPixels(*im);
 
-		for (int y = 0; y < num_height_pannels; y++) {
-			for (int x = 0; x < num_width_pannels; x++) {
+			EasyBitmap curr(im);
 
-				Location_t get_loaction(x + top_left.x, y + top_left.y, top_left.layer);
+			//Add it to vector
+			row.push_back(std::move(curr));
+		}
 
-				auto drawIm{ mdnr_map.get(get_loaction) };
-
-				Gdiplus::Status stat{ graphics.DrawImage(drawIm.get(),
-					static_cast<INT>(MDNR_Map::bitmap_width * x),
-					static_cast<INT>(MDNR_Map::bitmap_height * y),
-					MDNR_Map::bitmap_width,
-					MDNR_Map::bitmap_height) };
-
-				if (stat != Gdiplus::Status::Ok)
+		for (size_t y = MDNR_Map::bitmap_height; y != 0; y--) {
+			for (auto& bitmap : row)
+			{
+				for (size_t i = 0; i < bitmap.width(); i++)
 				{
-					throw std::runtime_error(":(");
+					ARGB_Pixel pix = *bitmap.pixelAt(i, y);
+					fout.write((char*)&pix, sizeof(ARGB_Pixel));
 				}
-
 			}
 		}
 	}
 
-	
-	/*
-	bmp: {557cf400-1a04-11d3-9a73-0000f81ef32e}
-	jpg: {557cf401-1a04-11d3-9a73-0000f81ef32e}
-	gif: {557cf402-1a04-11d3-9a73-0000f81ef32e}
-	tif: {557cf405-1a04-11d3-9a73-0000f81ef32e}
-	png: {557cf406-1a04-11d3-9a73-0000f81ef32e}
-	*/
-	CLSID pngClsid;
-	if (CLSIDFromString(L"{557CF406-1A04-11D3-9A73-0000F81EF32E}", &pngClsid) != NOERROR) {
-		throw std::runtime_error("pngClsid failed to initalize");
+	signal(SIGSEGV, hdlr);
+}
+
+
+std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap& bitmap) {
+	//Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
+	auto width = bitmap.GetWidth();
+	auto height = bitmap.GetHeight();
+
+	auto* bitmapData = new Gdiplus::BitmapData;
+
+	//Lock the whole bitmap so we can read pixel data easily.
+	Gdiplus::Rect rect(0, 0, width, height);
+	bitmap.LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, bitmapData);
+
+	//Get the individual pixels from the locked area.
+	auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
+
+	//Vector of vectors; each vector is a column.
+	std::vector<std::vector<unsigned>> resultPixels(width, std::vector<unsigned>(height));
+
+	const int stride = abs(bitmapData->Stride);
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			//Get the pixel colour from the pixels array which we got earlier.
+			const unsigned pxColor = pixels[y * stride / 4 + x];
+
+			//Get each individual colour component. Bitmap colours are in reverse order.
+			const unsigned red = (pxColor & 0xFF0000) >> 16;
+			const unsigned green = (pxColor & 0xFF00) >> 8;
+			const unsigned blue = pxColor & 0xFF;
+
+			//Combine the values in a more typical RGB format (as opposed to the bitmap way).
+			const unsigned rgbValue = RGB(red, green, blue);
+
+			//Assign this RGB value to the pixel location in the vector o' vectors.
+			resultPixels[x][y] = rgbValue;
+		}
 	}
-	canvas.Save(fileName, &pngClsid, NULL);
+
+	//Unlock the bits that we locked before.
+	bitmap.UnlockBits(bitmapData);
+	return resultPixels;
 }

@@ -39,7 +39,7 @@ public:
 	/// <summary>
 	/// Uses all availible threads to cache the list of locations provided
 	/// </summary>
-	void cache_list(std::vector<Location_t>& locations);
+	void cache_list_asyc(std::vector<Location_t>& locations);
 
 
 	/// <summary>
@@ -91,28 +91,20 @@ public:
 	static constexpr int bitmap_height = 256;
 
 private:
-	/// <summary>
-	/// Closes the internal HTTP handles. Used in the destructor
-	/// </summary>
-	void close_http_handles();
-
-	/// <summary>
-	/// Copies over session_h, connect_h and cache
-	/// </summary>
-	/// <param name="other">The MDNR_Map to create from</param>
-	MDNR_Map(MDNR_Map& other);
-
 	//A cache
 	std::map<Location_t, std::shared_ptr<Gdiplus::Bitmap>> internal_cache;
 
 	//HTTP Connection Handles
-	const HINTERNET  session_h = NULL, connect_h = NULL;
+	const HINTERNET session_h = NULL;
+	const HINTERNET connect_h = NULL;
 
 	//Mutex for threaded downloads and cache requests
 	std::mutex lock;
 
 	//Threads to do non-blocking downloads
-	std::vector<std::unique_ptr<WorkerThread>> workers;
+	WorkerThread* workers;
+
+	static const size_t num_workers;
 
 };
 

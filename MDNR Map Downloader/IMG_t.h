@@ -60,4 +60,11 @@ void screenshot(HWND hwnd, wchar_t* fileName);
 /// </param>
 void saveArea(Location_t top_left, Location_t bottom_right, wchar_t* fileName);
 
+/// <summary>
+/// Converts a Gdiplus::Bitmap into an array of pixels
+/// </summary>
+/// <param name="bitmap"></param>
+/// <returns></returns>
+std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap& bitmap);
+
 #endif // IMG_T_H986132709870932

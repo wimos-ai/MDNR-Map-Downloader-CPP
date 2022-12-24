@@ -121,6 +121,10 @@ void MainWindow::Shutdown()
 	mdnr_map.clear_cache();
 }
 
+/// <summary>
+/// Gets a file name from the user with .bmp on the end
+/// </summary>
+/// <returns>Nullptr on failure, a pointer to a null-terminated wide string on failure</returns>
 std::unique_ptr<wchar_t> getFileSaveAsName() {
 	std::unique_ptr<wchar_t> fileName{ new wchar_t[MAX_PATH] };
 	ZeroMemory(fileName.get(), MAX_PATH);
@@ -139,9 +143,11 @@ std::unique_ptr<wchar_t> getFileSaveAsName() {
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_EXPLORER | OFN_NONETWORKBUTTON | OFN_OVERWRITEPROMPT;
 
 
-	GetSaveFileName(&ofn);
+	if (GetSaveFileName(&ofn) == 0) { //If the user presses cancel or clicks out.
+		return nullptr;
+	}
 	//If the end of filepath does not have .bmp or .BMP
-	if (wcsstr(fileName.get(),L".bmp") == nullptr || wcsstr(fileName.get(), L".BMP") == nullptr)
+	if (wcsstr(fileName.get(), L".bmp") == nullptr || wcsstr(fileName.get(), L".BMP") == nullptr)
 	{
 		wcscat_s(fileName.get(), MAX_PATH, L".bmp"); //Append .bmp
 	}
@@ -179,6 +185,10 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case ID_SAVE_SAVEAS:
 		{
 			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+			if (fileName.get() == nullptr)
+			{
+				return 0; // User clicked exit
+			}
 			screenshot(hwnd, fileName.get());
 
 			return 0;
@@ -186,6 +196,12 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case ID_SAVE_SAVEDETAILED:
 		{
 			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+
+			if (fileName.get() == nullptr)
+			{
+				return 0; // User clicked exit
+			}
+			
 			Location_t top_left(map_location);
 
 			RECT rect;
@@ -200,8 +216,8 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			top_left.translateLayer(16);
 			bottom_right.translateLayer(16);
-
-			saveArea(top_left, bottom_right, fileName.get());
+			std::thread t(saveArea, top_left, bottom_right, fileName.release());
+			t.detach();
 
 			return 0;
 		}
@@ -469,7 +485,7 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 
 			auto drawIm{ mdnr_map.get(get_loaction) };
 
-			Gdiplus::Status stat{ g.DrawImage(drawIm.get(), (INT)(img_width * x) + currMouseDx, (INT)(img_height * y) + currMouseDy,img_width,img_height)};
+			Gdiplus::Status stat{ g.DrawImage(drawIm.get(), (INT)(img_width * x) + currMouseDx, (INT)(img_height * y) + currMouseDy,img_width,img_height) };
 
 			if (stat != Gdiplus::Status::Ok)
 			{

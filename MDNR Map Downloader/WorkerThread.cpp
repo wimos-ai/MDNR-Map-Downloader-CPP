@@ -1,4 +1,5 @@
 #include "WorkerThread.h"
+#include <iostream>
 
 void WorkerThread::addTask(Task task) {
 	std::unique_lock<std::mutex> lck(this->lock);
@@ -16,6 +17,7 @@ void WorkerThread::clear() {
 	while (!tasks.empty())
 	{
 		tasks.pop();
+		sem.try_acquire();
 	}
 }
 
@@ -38,6 +40,10 @@ void WorkerThread::threadMain()
 		Task tsk;
 		{
 			std::unique_lock<std::mutex> lck(this->lock);
+			if (tasks.empty())
+			{
+				continue;
+			}
 			tsk = tasks.front();
 			tasks.pop();
 
@@ -47,16 +53,16 @@ void WorkerThread::threadMain()
 		try {
 			tsk();
 		}
-		catch (...) {
-			//Probably should add logging here
+		catch (std::exception& e) {
+			std::cerr<< "Exception Caught in Worker Thread " << __FILE__ << __LINE__ << "Exception: " << e.what() << '\n';
 		}
-
-
+		catch (...) {
+			std::cerr << "Thrown Object Caught in Worker Thread " << __FILE__ << __LINE__ << '\n';
+		}
 	}
 }
 
-WorkerThread::WorkerThread() :isRunning(true), tasks(), lock(), thd([this]() {this->threadMain(); }) {
-}
+WorkerThread::WorkerThread() :isRunning(true), tasks(), lock(), thd([this]() {this->threadMain(); }) {}
 
 WorkerThread::~WorkerThread() {
 	kill();
