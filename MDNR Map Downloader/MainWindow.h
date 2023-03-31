@@ -15,7 +15,7 @@
 
 class MainWindow {
 public:
-	~MainWindow();
+	~MainWindow() = default;
 
 	MainWindow(HINSTANCE hInstance, int nCmdShow);
 
@@ -36,16 +36,11 @@ private:
 	//HWND of class
 	const HWND WindowProcessHWND;
 
-	//Buffered Init Result
-	const HRESULT bufferedInitResult;
-
 	LRESULT memberWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	void register_WClass(HINSTANCE hInstance);
 
 	HWND createWindow(HINSTANCE hInstance, int nCmdShow);
-
-	void paint(HWND hwnd);
 
 	void paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd,HDC hdc);
 

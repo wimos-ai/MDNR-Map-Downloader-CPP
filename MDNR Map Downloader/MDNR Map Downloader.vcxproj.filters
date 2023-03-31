@@ -21,12 +21,6 @@
     <ClCompile Include="MDNR_Map.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="debug.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="IMG_t.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Location_t.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -39,10 +33,13 @@
     <ClCompile Include="semaphore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="WorkerThread.cpp">
+    <ClCompile Include="MDNR_Map_Connection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EasyBitmap.cpp">
+    <ClCompile Include="ThreadPool.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="IMG_t.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -51,12 +48,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="MDNR_Map.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="debug.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="IMG_t.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Location_t.h">
@@ -71,10 +62,13 @@
     <ClInclude Include="semaphore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="WorkerThread.h">
+    <ClInclude Include="MDNR_Map_Connection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EasyBitmap.h">
+    <ClInclude Include="ThreadPool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IMG_t.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

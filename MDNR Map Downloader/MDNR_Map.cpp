@@ -19,43 +19,8 @@
 #include <cmath>
 #include <utility>
 
-const size_t MDNR_Map::num_workers = std::thread::hardware_concurrency();
 
 std::vector<Location_t> locationsInArea(Location_t top_left, Location_t bottom_right, int boarder_offset);
-
-//// Constructors & Destructors //////////////////////////////////////////////////////////////////////////////////
-
-MDNR_Map::MDNR_Map() :
-	session_h(WinHttpOpen(L"WinHTTP Example/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)),
-	connect_h(WinHttpConnect(session_h, L"maps1.dnr.state.mn.us", INTERNET_DEFAULT_HTTPS_PORT, 0)),
-	workers(new WorkerThread[std::thread::hardware_concurrency()])
-{
-	if (!this->session_h)
-		throw std::runtime_error("Failed to establish Win32 HTTP Session. Win32 Error Code: " + GetLastError());
-	
-	if (!this->connect_h)
-		throw std::runtime_error("Failed to connect to maps1.dnr.state.mn.us. Win32 Error Code: " + GetLastError());
-}
-
-MDNR_Map::MDNR_Map(HINTERNET _hSession) :
-	session_h(_hSession),
-	connect_h(WinHttpConnect(session_h, L"maps1.dnr.state.mn.us", INTERNET_DEFAULT_HTTPS_PORT, 0)),
-	workers(new WorkerThread[std::thread::hardware_concurrency()])
-{
-	if (!session_h)
-		throw std::runtime_error("Passed Invalid Win32 HTTP Session");
-
-	if (!this->connect_h)
-		throw std::runtime_error("Failed to connect to maps1.dnr.state.mn.us. Win32 Error Code: " + GetLastError());
-}
-
-MDNR_Map::~MDNR_Map() {
-	//Close Http Handles
-	if (this->connect_h) WinHttpCloseHandle(this->connect_h);
-	if (this->session_h) WinHttpCloseHandle(this->session_h);
-
-	delete[] workers;
-}
 
 //// Cache Methods //////////////////////////////////////////////////////////////////////////////////
 
@@ -77,17 +42,16 @@ void  MDNR_Map::cacheArea(Location_t top_left, Location_t bottom_right, int boar
 void MDNR_Map::cache_list_asyc(std::vector<Location_t>& locations)
 {
 	//Dole out one request to each thread until we run out of requests
-	size_t worker_idx{ 0 };
-	for (auto& it : locations) {
-		Task t = [it, this]() {
-			this->get(it);
+	for (auto l:locations)
+	{
+		Task t = [this, l]() {
+			Bitmap* bmp = this->map_con.download(l);
+			std::lock_guard<std::mutex>(this->lock);
+			this->internal_cache[l] = std::shared_ptr<Bitmap>(bmp);
 		};
-
-		workers[worker_idx].addTask(t);
-
-		worker_idx++;
-		worker_idx %= this->num_workers;
+		pool.submit_task(t);
 	}
+
 }
 
 bool MDNR_Map::contains(Location_t location)
@@ -99,10 +63,10 @@ bool MDNR_Map::contains(Location_t location)
 std::shared_ptr<Gdiplus::Bitmap> MDNR_Map::get(Location_t location) {
 	if (this->contains(location)) {
 		std::lock_guard<std::mutex> lck(lock);
-		return internal_cache.at(location);
+		return internal_cache[location];
 	}
 	else {
-		std::unique_ptr<Bitmap> tmp(download_img(connect_h, location));
+		std::unique_ptr<Bitmap> tmp(map_con.download(location));
 		std::lock_guard<std::mutex> lck(lock);
 		internal_cache[location] = std::move(tmp);
 		return internal_cache[location];
@@ -110,9 +74,6 @@ std::shared_ptr<Gdiplus::Bitmap> MDNR_Map::get(Location_t location) {
 }
 
 void MDNR_Map::clear_cache() {
-	for (int i = 0; i < this->num_workers; i++)
-		workers[i].clear();
-
 	std::lock_guard<std::mutex> lck(lock);
 	this->internal_cache.clear();
 }

@@ -25,7 +25,7 @@
 #include "MainWindow.h"
 #include "resource.h"
 #include "httpException.h"
-#include "debug.h"
+#include "IMG_t.h"
 
 //Needed Libs
 #pragma comment (lib,"UxTheme.lib")
@@ -39,18 +39,15 @@ typedef struct LongLat {
 constexpr long long LONGLATMSG = 0x0401;		//passes a LongLat pointer in the wparam
 constexpr long long CACHED_AREA_OUTSIDE_BOARDER = 3;
 
-MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))), bufferedInitResult(BufferedPaintInit()) {
+MainWindow::MainWindow(HINSTANCE hInstance, int nCmdShow) :WindowProcessHWND((this->register_WClass(hInstance), this->createWindow(hInstance, nCmdShow))) {
 	cacheWindowArea(CACHED_AREA_OUTSIDE_BOARDER);
 }
 
-MainWindow::~MainWindow() {
-	BufferedPaintUnInit();
-}
 
 LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	MainWindow* me = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-	if (me) {
-		return me->memberWndProc(hwnd, msg, wParam, lParam);
+	MainWindow* self = reinterpret_cast<MainWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+	if (self) {
+		return self->memberWndProc(hwnd, msg, wParam, lParam);
 	}
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
@@ -66,8 +63,6 @@ void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 	const INT num_width_pannels{ (win_width / MDNR_Map::bitmap_width) + 1 };
 	const INT num_height_pannels{ (win_height / MDNR_Map::bitmap_height) + 1 };
 
-	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), 0);
-
 	mdnr_map.cacheArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder);
 
 	mdnr_map.trimToArea(this->map_location, Location_t(this->map_location.x + num_width_pannels, this->map_location.y + num_height_pannels, this->map_location.layer), distanceOutsizeBoarder + 1);
@@ -75,7 +70,6 @@ void MainWindow::cacheWindowArea(int distanceOutsizeBoarder) {
 }
 
 void MainWindow::register_WClass(HINSTANCE hInstance) {
-	BOOL procAware = SetProcessDPIAware();
 	// Register the window class.
 	WNDCLASS wc = { 0 };
 
@@ -189,8 +183,8 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 			{
 				return 0; // User clicked exit
 			}
-			screenshot(hwnd, fileName.get());
-
+			std::thread t(screenshot, hwnd, std::move(fileName));
+			t.detach();
 			return 0;
 		}
 		case ID_SAVE_SAVEDETAILED:
@@ -216,7 +210,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			top_left.translateLayer(16);
 			bottom_right.translateLayer(16);
-			std::thread t(saveArea, top_left, bottom_right, fileName.release());
+			std::thread t(saveArea, top_left, bottom_right, std::move(fileName));
 			t.detach();
 
 			return 0;
@@ -224,7 +218,27 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		case ID_SAVE_SAVETHRESHOLDED:
 		{
 			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
-			notImplementedPopup(hwnd);
+			if (fileName.get() == nullptr)
+			{
+				return 0; // User clicked exit
+			}
+
+			Location_t top_left(map_location);
+
+			RECT rect;
+			GetClientRect(hwnd, &rect);
+
+			const INT win_width{ rect.right - rect.left };
+			const INT win_height{ rect.bottom - rect.top };
+
+			const INT num_width_pannels{ (win_width / MDNR_Map::bitmap_width) + 1 };
+			const INT num_height_pannels{ (win_height / MDNR_Map::bitmap_height) + 1 };
+			Location_t bottom_right(top_left.x + num_width_pannels, top_left.y + num_height_pannels, top_left.layer);
+
+			top_left.translateLayer(16);
+			bottom_right.translateLayer(16);
+			std::thread t(saveAreaThresholded, top_left, bottom_right, std::move(fileName));
+			t.detach();
 			return 0;
 		}
 		case ID_ACCELERATOR40007: //Right
@@ -360,7 +374,7 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		{
 			return 0;
 		}
-		//Fall through
+		//Fall through is intentional
 	case WM_LBUTTONUP:
 	{
 		mButtonDown = false;
@@ -414,7 +428,6 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 	GetClientRect(hwnd, &sz);
 
 	BP_PAINTPARAMS paintParams = { 0 };
-
 	paintParams.cbSize = sizeof(paintParams);
 	paintParams.dwFlags = BPPF_ERASE;
 	paintParams.pBlendFunction = NULL;
@@ -424,25 +437,13 @@ void MainWindow::paintDoubleBuffered(HWND hwnd) {
 
 	HPAINTBUFFER hBufferedPaint = BeginBufferedPaint(hdc, &sz, BPBF_COMPATIBLEBITMAP, &paintParams, &hdcBuffer);
 
-	if (hBufferedPaint && this->bufferedInitResult == Gdiplus::Status::Ok) {
-		// Application specific painting code
-		paint(map_location, mdnr_map, hwnd, hdcBuffer);
+	paint(map_location, mdnr_map, hwnd, hdcBuffer);
+
+	if (hBufferedPaint) {
 		EndBufferedPaint(hBufferedPaint, TRUE);
-	}
-	else
-	{
-		paint(map_location, mdnr_map, hwnd, hdcBuffer);
 	}
 
 	ReleaseDC(hwnd, hdc);
-}
-
-void MainWindow::paint(HWND hwnd) {
-	PAINTSTRUCT ps;
-	HDC hdc{ BeginPaint(hwnd,&ps) };
-	paint(map_location, mdnr_map, hwnd, hdc);
-	EndPaint(hwnd, &ps);
-	DeleteDC(hdc);
 }
 
 void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, HDC hdc) {
@@ -489,7 +490,7 @@ void MainWindow::paint(Location_t map_location, MDNR_Map& mdnr_map, HWND hwnd, H
 
 			if (stat != Gdiplus::Status::Ok)
 			{
-				throw std::runtime_error(":(");
+				continue;
 			}
 
 		}

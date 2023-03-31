@@ -14,8 +14,8 @@
 
 //Custom defined data types
 #include "Location_t.h"
-#include "IMG_t.h"
-#include "WorkerThread.h"
+#include "ThreadPool.h"
+#include "MDNR_Map_Connection.h"
 
 //Add Windows libs
 #pragma comment(lib, "winhttp.lib")
@@ -23,6 +23,8 @@
 class MDNR_Map
 {
 public:
+
+	MDNR_Map() = default;
 
 	/// <summary>
 	/// Returns an image from the map in a thread safe manner
@@ -41,22 +43,12 @@ public:
 	/// </summary>
 	void cache_list_asyc(std::vector<Location_t>& locations);
 
-
-	/// <summary>
-	/// Creates a underlying HTTP Session and connects to the MDNR server.
-	/// Throws std::runtime_exception on failure
-	/// </summary>
-	MDNR_Map();
-
 	/// <summary>
 	/// Connects to the MDNR server using the provided session
 	/// Throws std::runtime_exception on failure
 	/// </summary>
 	/// <param name="_hSession">A handle to an existing HTTP Session made from WinHttpOpen</param>
 	explicit MDNR_Map(HINTERNET  _hSession);
-
-	///<summary>Default Destructor</summary>
-	~MDNR_Map();
 
 	/// <summary>
 	/// Uses all availible threads to cache area provided
@@ -95,16 +87,12 @@ private:
 	std::map<Location_t, std::shared_ptr<Gdiplus::Bitmap>> internal_cache;
 
 	//HTTP Connection Handles
-	const HINTERNET session_h = NULL;
-	const HINTERNET connect_h = NULL;
+	MDNR_Map_Connection map_con;
 
 	//Mutex for threaded downloads and cache requests
 	std::mutex lock;
 
-	//Threads to do non-blocking downloads
-	WorkerThread* workers;
-
-	static const size_t num_workers;
+	ThreadPool pool;
 
 };
 

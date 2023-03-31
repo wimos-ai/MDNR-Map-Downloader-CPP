@@ -16,14 +16,21 @@ std::size_t Location_t::hash_fn::operator() (const Location_t& location) const
 void Location_t::translateLayer(uint8_t newLayer) {
 	if (newLayer < layer)
 	{
-		this->x /= (2 * layer - newLayer);
-		this->y /= (2 * layer - newLayer);
-		layer = newLayer;
+		while (newLayer != layer)
+		{
+			x *= 2;
+			y *= 2;
+			layer += 1;
+		}
+
 	}
 	else if (newLayer > layer) {
-		this->x *= (2 * newLayer - layer);
-		this->y *= (2 * newLayer - layer);
-		layer = newLayer;
+		while (newLayer != layer)
+		{
+			x /= 2;
+			y /= 2;
+			layer -= 1;
+		}
 	}
 	else {
 		return;

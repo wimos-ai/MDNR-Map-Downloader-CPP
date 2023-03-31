@@ -106,9 +106,9 @@ FONT 20, "Century", 700, 0, 0x0
 BEGIN
     LTEXT           "Movement",IDC_STATIC,66,7,32,8
     LTEXT           "WSAD",IDC_STATIC,7,7,21,8
-    LTEXT           "+",IDC_STATIC,14,20,8,8
+    LTEXT           "+ or Shift  Up",IDC_STATIC,7,20,48,8
     LTEXT           "Zoom In",IDC_STATIC,73,20,25,8
-    LTEXT           "-",IDC_STATIC,15,32,21,8
+    LTEXT           "- or Shift Down",IDC_STATIC,7,32,49,8
     LTEXT           "Zoom Out",IDC_STATIC,66,31,32,8
 END
 
