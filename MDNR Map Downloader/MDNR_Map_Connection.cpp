@@ -77,7 +77,7 @@ Bitmap* MDNR_Map_Connection::download(Location_t location)
 }
 
 MDNR_Map_Connection::MDNR_Map_Connection() : session_h(WinHttpOpen(L"WinHTTP Example/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)),
-connect_h(WinHttpConnect(session_h, L"maps1.dnr.state.mn.us", INTERNET_DEFAULT_HTTPS_PORT, 0))
+connect_h(WinHttpConnect(session_h, L"tiles.dnr.state.mn.us", INTERNET_DEFAULT_HTTPS_PORT, 0))
 {
 	if (!this->session_h)
 		throw std::runtime_error("Failed to establish Win32 HTTP Session. Win32 Error Code: " + GetLastError());
