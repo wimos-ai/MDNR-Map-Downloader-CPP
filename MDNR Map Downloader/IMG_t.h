@@ -7,6 +7,7 @@
 
 //STL
 #include <memory>
+#include <string>
 
 //My Defines
 #include "Location_t.h"
@@ -21,7 +22,7 @@
 /// <param name="fileName">
 /// The path to save the resultant image at
 /// </param>
-void screenshot(HWND hwnd, std::unique_ptr<wchar_t> fileName);
+void screenshot(HWND hwnd, const wchar_t* fileName);
 
 /// <summary>/// 
 ///Saves all of the map between the two points to a file
@@ -35,8 +36,8 @@ void screenshot(HWND hwnd, std::unique_ptr<wchar_t> fileName);
 /// <param name="fileName">
 /// The name of the file to save the result to
 /// </param>
-void saveArea(Location_t top_left, Location_t bottom_right, std::unique_ptr<wchar_t> fileName);
+void saveArea(Location_t top_left, Location_t bottom_right, const wchar_t* fileName);
 
-void saveAreaThresholded(Location_t top_left, Location_t bottom_right, std::unique_ptr<wchar_t> fileName);
+void saveAreaThresholded(Location_t top_left, Location_t bottom_right, const wchar_t* fileName);
 
 #endif // IMG_T_H986132709870932

@@ -191,7 +191,7 @@ namespace {
 }
 
 
-void screenshot(HWND hWnd, std::unique_ptr<wchar_t> fileName)
+void screenshot(HWND hWnd, const wchar_t* fileName)
 {
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -223,7 +223,7 @@ void screenshot(HWND hWnd, std::unique_ptr<wchar_t> fileName)
 	Bitmap* bmp = new Bitmap(hbmScreen, NULL);
 
 	// Save the Bitmap object to a file
-	saveBitmap(bmp, fileName.get());
+	saveBitmap(bmp, fileName);
 
 	// Clean up resources
 	DeleteObject(hbmScreen);
@@ -233,16 +233,16 @@ void screenshot(HWND hWnd, std::unique_ptr<wchar_t> fileName)
 	delete bmp;
 }
 
-void saveArea(Location_t top_left, Location_t bottom_right, std::unique_ptr<wchar_t> fileName) {
+void saveArea(Location_t top_left, Location_t bottom_right, const wchar_t* fileName) {
 
 	std::unique_ptr<Bitmap> bmp{ bitmapFromArea(top_left, bottom_right) };
 
-	if (saveBitmap(bmp.get(), fileName.get()) == EXIT_FAILURE) {
+	if (saveBitmap(bmp.get(), fileName) == EXIT_FAILURE) {
 		MessageBox(NULL, L"Saving Bitmap Error", L"Failed", MB_OK);
 	}
 }
 
-void saveAreaThresholded(Location_t top_left, Location_t bottom_right, std::unique_ptr<wchar_t> fileName) {
+void saveAreaThresholded(Location_t top_left, Location_t bottom_right, const wchar_t* fileName) {
 	//White Listed Pixels
 	//(85, 199, 251),
 	//(68, 189, 242),
@@ -264,7 +264,7 @@ void saveAreaThresholded(Location_t top_left, Location_t bottom_right, std::uniq
 
 	threshold(bmp.get(), colors);
 
-	if (saveBitmap(bmp.get(), fileName.get()) == EXIT_FAILURE) {
+	if (saveBitmap(bmp.get(), fileName) == EXIT_FAILURE) {
 		MessageBox(NULL, L"Saving Bitmap Error", L"Failed", MB_OK);
 	}
 }
