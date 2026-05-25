@@ -119,15 +119,14 @@ void MainWindow::Shutdown()
 /// Gets a file name from the user with .bmp on the end
 /// </summary>
 /// <returns>Nullptr on failure, a pointer to a null-terminated wide string on failure</returns>
-std::unique_ptr<wchar_t> getFileSaveAsName() {
-	std::unique_ptr<wchar_t> fileName{ new wchar_t[MAX_PATH] };
-	ZeroMemory(fileName.get(), MAX_PATH);
+std::wstring getFileSaveAsName() {
+	wchar_t data[MAX_PATH + 1] = {0};
 
 	OPENFILENAME ofn{ 0 };
 
 	ofn.lStructSize = sizeof(ofn);
 	ofn.hwndOwner = NULL;
-	ofn.lpstrFile = fileName.get();
+	ofn.lpstrFile = data;
 	ofn.nMaxFile = MAX_PATH;
 	ofn.lpstrFilter = L"Bitmap\0*.BMP\0\0";
 	ofn.nFilterIndex = 1;
@@ -141,12 +140,12 @@ std::unique_ptr<wchar_t> getFileSaveAsName() {
 		return nullptr;
 	}
 	//If the end of filepath does not have .bmp or .BMP
-	if (wcsstr(fileName.get(), L".bmp") == nullptr || wcsstr(fileName.get(), L".BMP") == nullptr)
+	if (wcsstr(data, L".bmp") == nullptr || wcsstr(data, L".BMP") == nullptr)
 	{
-		wcscat_s(fileName.get(), MAX_PATH, L".bmp"); //Append .bmp
+		wcscat_s(data, MAX_PATH, L".bmp"); //Append .bmp
 	}
 
-	return fileName;
+	return data;
 
 }
 
@@ -178,24 +177,26 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 		}
 		case ID_SAVE_SAVEAS:
 		{
-			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
-			if (fileName.get() == nullptr)
+			std::wstring fileName{ getFileSaveAsName() };
+			if (fileName.empty())
 			{
 				return 0; // User clicked exit
 			}
-			std::thread t(screenshot, hwnd, std::move(fileName));
+			std::thread t([hwnd, fileName = std::move(fileName)]() {
+				screenshot(hwnd, fileName.c_str()); }
+			);
 			t.detach();
 			return 0;
 		}
 		case ID_SAVE_SAVEDETAILED:
 		{
-			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
+			std::wstring fileName{ getFileSaveAsName() };
 
-			if (fileName.get() == nullptr)
+			if (fileName.empty())
 			{
 				return 0; // User clicked exit
 			}
-			
+
 			Location_t top_left(map_location);
 
 			RECT rect;
@@ -210,15 +211,18 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			top_left.translateLayer(16);
 			bottom_right.translateLayer(16);
-			std::thread t(saveArea, top_left, bottom_right, std::move(fileName));
+			std::thread t([top_left, bottom_right, fileName = std::move(fileName)]() {
+				saveArea(top_left, bottom_right, fileName.c_str());
+				}
+			);
 			t.detach();
 
 			return 0;
 		}
 		case ID_SAVE_SAVETHRESHOLDED:
 		{
-			std::unique_ptr<wchar_t> fileName{ getFileSaveAsName() };
-			if (fileName.get() == nullptr)
+			std::wstring fileName{ getFileSaveAsName() };
+			if (fileName.empty())
 			{
 				return 0; // User clicked exit
 			}
@@ -237,7 +241,10 @@ LRESULT MainWindow::memberWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
 
 			top_left.translateLayer(16);
 			bottom_right.translateLayer(16);
-			std::thread t(saveAreaThresholded, top_left, bottom_right, std::move(fileName));
+			std::thread t([top_left, bottom_right, fileName = std::move(fileName)]() {
+				saveAreaThresholded(top_left, bottom_right, fileName.c_str());
+				}
+			);
 			t.detach();
 			return 0;
 		}

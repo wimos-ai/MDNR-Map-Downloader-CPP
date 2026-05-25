@@ -35,7 +35,7 @@ void  MDNR_Map::cacheArea(Location_t top_left, Location_t bottom_right, int boar
 	if (bottom_right.layer != top_left.layer)
 		throw std::invalid_argument("top_left and bottom_right must be on the same layer");
 
-	std::vector<Location_t> list = std::move(locationsInArea(top_left, bottom_right, boarder_offset));
+	std::vector<Location_t> list{ locationsInArea(top_left, bottom_right, boarder_offset) };
 	this->cache_list_asyc(list);
 }
 
@@ -46,7 +46,7 @@ void MDNR_Map::cache_list_asyc(std::vector<Location_t>& locations)
 	{
 		Task t = [this, l]() {
 			Bitmap* bmp = this->map_con.download(l);
-			std::lock_guard<std::mutex>(this->lock);
+			std::lock_guard<std::mutex> mtx(this->lock);
 			this->internal_cache[l] = std::shared_ptr<Bitmap>(bmp);
 		};
 		pool.submit_task(t);
@@ -79,20 +79,19 @@ void MDNR_Map::clear_cache() {
 }
 
 void MDNR_Map::trimToArea(Location_t top_left, Location_t bottom_right, int boarder_offset) {
-	using std::vector;
-	using std::pair;
-	using std::unique_ptr;
 
-	vector<Location_t> list(locationsInArea(top_left, bottom_right, boarder_offset));
-	vector<pair<Location_t, std::shared_ptr<Gdiplus::Bitmap>>> kept_images;
+	std::vector<Location_t> list(locationsInArea(top_left, bottom_right, boarder_offset));
+	std::vector<std::pair<Location_t, std::shared_ptr<Gdiplus::Bitmap>>> kept_images;
+	kept_images.reserve(list.size());
 
 	std::lock_guard<std::mutex> lck(lock);
 
-	for (int i = 0; i < list.size(); i++)
+	for (const auto loc: list)
 	{
-		if (internal_cache.find(list[i]) != internal_cache.end())
+		auto itr = internal_cache.find(loc);
+		if ( itr != internal_cache.end())
 		{
-			kept_images.emplace_back(list[i], this->internal_cache.at(list[i]));
+			kept_images.emplace_back(loc, std::move(itr->second));
 		}
 	}
 
