@@ -1,12 +1,13 @@
 #pragma once
-
+#define NOMINMAX
 
 #include <functional>
 #include <queue>
 #include <atomic>
+#include <thread>
 #include <vector>
-
-#include "semaphore.h"
+#include <semaphore>
+#include <mutex>
 
 using Task = std::function<void(void)>;
 
@@ -19,7 +20,7 @@ public:
 private:
 	std::vector<std::thread> worker_thds;
 	size_t num_thds;
-	semaphore sem;
+	std::counting_semaphore<120000> sem{0};
 	std::atomic_bool running;
 	std::queue<Task> tasks;
 	std::mutex tasks_mutex;
